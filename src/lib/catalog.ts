@@ -1,5 +1,5 @@
 import type { AppData, Category, TxType } from '../types'
-import { CAT_COLORS } from '../data/categories'
+import { CAT_COLORS, CAT_FG } from '../data/categories'
 
 export function catOf(data: AppData, key: string): Category | undefined {
   return data.categories.find((c) => c.key === key)
@@ -14,7 +14,11 @@ export function catEmoji(data: AppData, key: string): string {
 }
 
 export function catColor(key: string, parentKey?: string | null): string {
-  return CAT_COLORS[key] ?? (parentKey ? CAT_COLORS[parentKey] : undefined) ?? '#EBEBEC'
+  return CAT_COLORS[key] ?? (parentKey ? CAT_COLORS[parentKey] : undefined) ?? '#EAEAEE'
+}
+
+export function catFg(key: string, parentKey?: string | null): string {
+  return CAT_FG[key] ?? (parentKey ? CAT_FG[parentKey] : undefined) ?? '#86848F'
 }
 
 export function majorCategories(data: AppData, type: TxType): Category[] {

@@ -3,7 +3,8 @@ import { useStore, updateSettings } from '../store'
 import {
   monthSummary, categoryBreakdown, cardUsageInMonth, tripSummaries, housingFundStatus,
 } from '../lib/derive'
-import { catColor, catEmoji, catLabel } from '../lib/catalog'
+import { catColor, catFg, catEmoji, catLabel } from '../lib/catalog'
+import { CatGlyph } from '../components/icons'
 import { fmtCny, fmtMoney, monthLabel, shiftMonth, thisMonthKey, clamp } from '../lib/utils'
 import { Segmented, Sheet } from '../components/ui'
 import { CAT_CARDS } from '../data/categories'
@@ -83,7 +84,9 @@ export default function StatsPage() {
         {ranks.length === 0 && <div className="empty">本月还没有支出</div>}
         {ranks.map((r) => (
           <button key={r.key} className="rank-row" onClick={() => setDrill(r.key)}>
-            <span className="rank-ico" style={{ background: catColor(r.key) }}>{catEmoji(data, r.key)}</span>
+            <span className="rank-ico" style={{ background: catColor(r.key), color: catFg(r.key) }}>
+              <CatGlyph keyName={r.key} emoji={catEmoji(data, r.key)} size={18} />
+            </span>
             <span className="rank-main">
               <span className="rank-top">
                 <span>

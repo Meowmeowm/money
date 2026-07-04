@@ -295,6 +295,39 @@ input, select { outline: none; }
 }
 .badge.rf { background: var(--expense-soft); color: var(--expense); }
 
+/* ---------- 账单页顶部本月总览（速记账单风格） ---------- */
+.bill-h {
+  font-size: 22px; font-weight: 800; letter-spacing: -0.01em;
+  margin: 4px 2px 12px;
+}
+.bill-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
+}
+.bill-card {
+  background: #fff; border-radius: 14px; padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(45, 40, 70, 0.04);
+}
+.bill-card .top {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+}
+.bill-card .ic {
+  width: 30px; height: 30px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+}
+.bill-card .k { font-size: 12px; color: var(--ink-3); font-weight: 500; }
+.bill-card .v {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 21px; font-weight: 800; letter-spacing: -0.02em;
+}
+.bill-card .v.exp { color: var(--expense); }
+.bill-card .v.inc { color: var(--income); }
+.bill-card .v.bal { color: #4f74c4; }
+.bill-card .v.bud { color: var(--warn); }
+
+.bill-budget { background: #fff; border-radius: 14px; padding: 13px 14px; margin-bottom: 6px; box-shadow: 0 1px 2px rgba(45,40,70,.04); }
+.bill-budget .top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 8px; }
+.bill-budget .pct { font-weight: 700; }
+
 .search-row {
   display: flex; gap: 8px; margin-bottom: 12px;
 }

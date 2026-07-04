@@ -5,6 +5,7 @@ import DetailsPage from './pages/Details'
 import StatsPage from './pages/Stats'
 import MinePage from './pages/Mine'
 import { round2, fmtCny } from './lib/utils'
+import { NavIcon } from './components/icons'
 
 type Tab = 'entry' | 'details' | 'stats' | 'mine'
 
@@ -25,11 +26,11 @@ function consumeUrlEntry(): { prefill?: Omit<UrlPrefill, 'key'>; save?: { amount
   return params.get('save') === '1' ? { save: parsed } : { prefill: parsed }
 }
 
-const TABS: { key: Tab; label: string; ico: string }[] = [
-  { key: 'entry', label: '记账', ico: '✏️' },
-  { key: 'details', label: '明细', ico: '📋' },
-  { key: 'stats', label: '统计', ico: '📊' },
-  { key: 'mine', label: '我的', ico: '🎫' },
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'entry', label: '记账' },
+  { key: 'details', label: '账单' },
+  { key: 'stats', label: '统计' },
+  { key: 'mine', label: '我的' },
 ]
 
 export default function App() {
@@ -83,7 +84,7 @@ export default function App() {
       <nav className="tabbar">
         {TABS.map((t) => (
           <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
-            <span className="tab-ico">{t.ico}</span>
+            <span className="tab-ico"><NavIcon name={t.key} /></span>
             {t.label}
           </button>
         ))}

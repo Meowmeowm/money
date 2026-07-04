@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Category, TxType } from '../types'
 import { useStore, addTransaction, showToast, addTrip, setActiveTrip, applyAyiTemplate, addCard, renewCard } from '../store'
-import { catColor, majorCategories, subCategories, catLabel } from '../lib/catalog'
+import { catColor, catFg, majorCategories, subCategories, catLabel } from '../lib/catalog'
+import { CatGlyph } from '../components/icons'
 import { CURRENCIES, CURRENCY_SYMBOL } from '../lib/fx'
 import { fmtCny, fmtMoney, round2, todayStr, dayLabel } from '../lib/utils'
 import { Sheet, Segmented, parseAmount } from '../components/ui'
@@ -221,8 +222,8 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
               onPointerLeave={() => clearTimeout(pressTimer.current)}
               onContextMenu={(e) => e.preventDefault()}
             >
-              <span className="ico" style={{ background: catColor(c.key) }}>
-                {c.emoji}
+              <span className="ico" style={{ background: catColor(c.key), color: catFg(c.key) }}>
+                <CatGlyph keyName={c.key} emoji={c.emoji} size={24} />
               </span>
               <span className="lbl">
                 {c.label}

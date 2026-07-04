@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { Transaction } from '../types'
 import { useStore, updateTransaction, deleteTransaction, markRefund, addTemplate, showToast } from '../store'
-import { catColor, catEmoji, catLabel, majorCategories, subCategories } from '../lib/catalog'
-import { dayLabel, fmtCny, fmtMoney, round2, todayStr } from '../lib/utils'
+import { catColor, catFg, catEmoji, catLabel, majorCategories, subCategories } from '../lib/catalog'
+import { dayLabel, fmtCny, fmtMoney, round2, todayStr, thisMonthKey, monthLabel, clamp } from '../lib/utils'
 import { Sheet, parseAmount } from '../components/ui'
 import { CURRENCIES, CURRENCY_SYMBOL } from '../lib/fx'
+import { CatGlyph, StatIcon } from '../components/icons'
+import { monthSummary } from '../lib/derive'
 
 export default function DetailsPage() {
   const { data } = useStore()
@@ -36,11 +38,85 @@ export default function DetailsPage() {
       }))
   }, [data, query])
 
+  const mk = thisMonthKey()
+  const s = data.settings
+  const monthSum = useMemo(() => monthSummary(data, mk, true), [data, mk])
+  const budgetSpent = useMemo(() => monthSummary(data, mk, s.budget_include_cards).expense, [data, mk, s.budget_include_cards])
+  const passedDays = new Date().getDate()
+  const budgetOn = s.budget_enabled && s.budget_total != null && s.budget_total > 0
+
   return (
     <div className="page">
+      <div className="bill-h">本月账单</div>
+
+      <div className="bill-grid">
+        <div className="bill-card">
+          <div className="top">
+            <span className="ic" style={{ background: 'var(--expense-soft)', color: 'var(--expense)' }}>
+              <StatIcon name="expense" />
+            </span>
+            <span className="k">支出</span>
+          </div>
+          <div className="v exp">¥{fmtMoney(monthSum.expense)}</div>
+        </div>
+        <div className="bill-card">
+          <div className="top">
+            <span className="ic" style={{ background: 'var(--income-soft)', color: 'var(--income)' }}>
+              <StatIcon name="income" />
+            </span>
+            <span className="k">收入</span>
+          </div>
+          <div className="v inc">¥{fmtMoney(monthSum.income)}</div>
+        </div>
+        <div className="bill-card">
+          <div className="top">
+            <span className="ic" style={{ background: '#e6edf9', color: '#4f74c4' }}>
+              <StatIcon name="balance" />
+            </span>
+            <span className="k">结余</span>
+          </div>
+          <div className="v bal">¥{fmtMoney(monthSum.balance)}</div>
+        </div>
+        <div className="bill-card">
+          <div className="top">
+            <span className="ic" style={{ background: 'var(--warn-soft)', color: 'var(--warn)' }}>
+              <StatIcon name="budget" />
+            </span>
+            <span className="k">{budgetOn ? '剩余预算' : '日均支出'}</span>
+          </div>
+          <div className="v bud">
+            ¥{fmtMoney(budgetOn ? Math.max(0, (s.budget_total ?? 0) - budgetSpent) : monthSum.expense / Math.max(1, passedDays))}
+          </div>
+        </div>
+      </div>
+
+      {budgetOn && (
+        <div className="bill-budget">
+          <div className="top">
+            <span style={{ color: 'var(--ink-2)' }}>预算使用{s.budget_include_cards ? '' : '（不含充值卡）'}</span>
+            <span
+              className="pct num"
+              style={{ color: budgetSpent / (s.budget_total ?? 1) >= 1 ? 'var(--expense)' : budgetSpent / (s.budget_total ?? 1) >= 0.8 ? 'var(--warn)' : 'var(--income)' }}
+            >
+              {Math.round((budgetSpent / (s.budget_total ?? 1)) * 100)}%
+            </span>
+          </div>
+          <div className="progress">
+            <div
+              className={budgetSpent / (s.budget_total ?? 1) >= 1 ? 'over' : budgetSpent / (s.budget_total ?? 1) >= 0.8 ? 'warn' : ''}
+              style={{ width: `${clamp((budgetSpent / (s.budget_total ?? 1)) * 100, 2, 100)}%` }}
+            />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--ink-3)', textAlign: 'right', marginTop: 4 }} className="num">
+            ¥{fmtMoney(s.budget_total ?? 0)} 总预算
+          </div>
+        </div>
+      )}
+
       <div className="search-row">
         <input type="text" placeholder="🔍 搜备注 / 分类" value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
+      {!query && <div className="section-h" style={{ marginTop: 4 }}><span>交易信息</span><span style={{ color: 'var(--ink-3)', fontWeight: 500 }}>{monthLabel(mk)}</span></div>}
       {grouped.length === 0 && <div className="empty">{query ? '没有匹配的记录' : '还没有账目，去记一笔吧'}</div>}
       {grouped.map((g) => (
         <div className="day-group" key={g.date}>
@@ -69,10 +145,11 @@ function TxRow(props: { t: Transaction; onTap: () => void }) {
   const { t } = props
   const trip = t.trip_id ? data.trips.find((x) => x.id === t.trip_id) : null
   const displayKey = t.subcategory ?? t.category
+  const hm = new Date(t.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
   return (
     <button className="tx-item" onClick={props.onTap}>
-      <span className="tx-ico" style={{ background: catColor(t.category) }}>
-        {catEmoji(data, displayKey)}
+      <span className="tx-ico" style={{ background: catColor(t.category), color: catFg(t.category) }}>
+        <CatGlyph keyName={displayKey} parentKey={t.category} emoji={catEmoji(data, displayKey)} size={20} />
       </span>
       <span className="tx-main">
         <span className="tx-cat">
@@ -83,7 +160,8 @@ function TxRow(props: { t: Transaction; onTap: () => void }) {
           {trip && <span className="badge">✈️ {trip.name}</span>}
           {t.refund_status === 'full' && <span className="badge rf">已退款</span>}
           {t.refund_status === 'partial' && <span className="badge rf">部分退款 -{fmtMoney(t.refund_amount)}</span>}
-          {t.note}
+          <span>{hm}</span>
+          {t.note && <span>· {t.note}</span>}
         </span>
       </span>
       <span className={`tx-amt ${t.type === 'income' ? 'inc' : 'exp'} ${t.refund_status === 'full' ? 'refunded' : ''}`}>
