@@ -49,6 +49,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   c('cards_medical', CAT_CARDS, '医美', '🌸', 'expense', 63),
   c('cards_nail', CAT_CARDS, '美甲卡', '💅', 'expense', 64),
   c('cards_lash', CAT_CARDS, '睫毛卡', '👁️', 'expense', 65),
+  c('cards_massage', CAT_CARDS, '按摩卡', '💆', 'expense', 66),
   c('social_family', 'social', '给家人', '👨‍👩‍👧', 'expense', 71),
   c('social_aa', 'social', '同事AA代付', '🧾', 'expense', 72),
   c('social_gift', 'social', '红包礼物', '🎁', 'expense', 73),
