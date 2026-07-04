@@ -27,6 +27,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   c('food_coffee', 'food', '咖啡奶茶', '🧋', 'expense', 12),
   c('food_restaurant', 'food', '下馆子', '🍽️', 'expense', 13),
   c('food_grocery', 'food', '食材超市', '🥬', 'expense', 14),
+  c('food_fruit', 'food', '水果', '🍓', 'expense', 15),
   c('transport_taxi', 'transport', '打车', '🚖', 'expense', 21),
   c('transport_metro', 'transport', '地铁公交', '🚇', 'expense', 22),
   c('transport_bike', 'transport', '单车', '🚲', 'expense', 23),

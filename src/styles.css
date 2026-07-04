@@ -438,6 +438,28 @@ input, select { outline: none; }
   padding: 10px 12px; font-size: 15px; min-height: 44px;
 }
 .field input.num { font-family: var(--mono); }
+/* 所有输入/下拉统一高度，视觉齐整 */
+.field input, .field select { height: 46px; box-sizing: border-box; }
+.field select {
+  -webkit-appearance: none; appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236f6c78' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+}
+
+/* 一行放多个字段（金额+币种 / 大类+小类 / 日期+旅行） */
+.field-row { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-end; }
+.field-row .field { margin-bottom: 0; }
+.field-row .grow { flex: 1; min-width: 0; }
+
+/* 退款：一个可点切换的 chip，点一下标记/取消 */
+.refund-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.refund-chip {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 46px; border-radius: 11px; border: 1px solid var(--line);
+  background: #fff; color: var(--ink-2); font-size: 14px; font-weight: 600;
+}
+.refund-chip.on { background: var(--expense-soft); border-color: var(--expense); color: var(--expense); }
 
 .btn {
   display: block; width: 100%;

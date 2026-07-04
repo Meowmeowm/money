@@ -227,12 +227,12 @@ function EditSheet(props: { t: Transaction; onClose: () => void }) {
 
   return (
     <Sheet title="编辑这笔账" onClose={props.onClose}>
-      <div className="field">
-        <label>金额{currency !== 'CNY' ? `（${currency} 原币）` : ''}{t.refund_status !== 'none' ? '（退款前原额）' : ''}</label>
-        <input className="num" type="text" inputMode="decimal" value={amountStr} onChange={(e) => setAmountStr(e.target.value)} />
-      </div>
-      <div className="btn-row" style={{ marginBottom: 12 }}>
-        <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+      <div className="field-row">
+        <div className="field grow" style={{ marginBottom: 0 }}>
+          <label>金额{currency !== 'CNY' ? `（${currency}）` : ''}{t.refund_status !== 'none' ? '（退款前）' : ''}</label>
+          <input className="num" type="text" inputMode="decimal" value={amountStr} onChange={(e) => setAmountStr(e.target.value)} />
+        </div>
+        <div className="field" style={{ width: 110, marginBottom: 0 }}>
           <label>币种</label>
           <select
             value={currency}
@@ -249,15 +249,65 @@ function EditSheet(props: { t: Transaction; onClose: () => void }) {
             ))}
           </select>
         </div>
-        {currency !== 'CNY' && (
-          <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-            <label>汇率 → CNY</label>
-            <input className="num" type="text" inputMode="decimal" value={rateStr} onChange={(e) => setRateStr(e.target.value)} />
-          </div>
-        )}
       </div>
-      <div className="btn-row" style={{ marginBottom: 12 }}>
-        <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+      {currency !== 'CNY' && (
+        <div className="field">
+          <label>汇率 → CNY</label>
+          <input className="num" type="text" inputMode="decimal" value={rateStr} onChange={(e) => setRateStr(e.target.value)} />
+        </div>
+      )}
+
+      {t.type === 'expense' && (
+        <>
+          <div className="refund-row">
+            <button
+              className={`refund-chip ${t.refund_status !== 'none' ? 'on' : ''}`}
+              onClick={() => {
+                if (t.refund_status === 'none') { markRefund(t.id, 'full'); showToast('已整笔退款'); props.onClose() }
+                else { markRefund(t.id, 'none'); showToast('已取消退款'); props.onClose() }
+              }}
+            >
+              🔄 {t.refund_status === 'full'
+                ? '已整笔退款 · 点取消'
+                : t.refund_status === 'partial'
+                  ? `已退 ${fmtCny(t.refund_amount)} · 点取消`
+                  : '标记整笔退款'}
+            </button>
+            {t.refund_status === 'none' && (
+              <button className="link-btn" onClick={() => setRefundMode(!refundMode)}>
+                {refundMode ? '收起' : '部分退款'}
+              </button>
+            )}
+          </div>
+          {refundMode && t.refund_status === 'none' && (
+            <div className="btn-row" style={{ marginBottom: 12 }}>
+              <input
+                className="num"
+                type="text"
+                inputMode="decimal"
+                placeholder="退款金额"
+                value={refundStr}
+                onChange={(e) => setRefundStr(e.target.value)}
+                style={{ flex: 1, border: '1px solid var(--line)', borderRadius: 11, padding: '10px 12px', background: '#fff', minHeight: 46 }}
+              />
+              <button
+                className="btn sm"
+                disabled={!Number.isFinite(parseAmount(refundStr)) || parseAmount(refundStr) <= 0}
+                onClick={() => {
+                  markRefund(t.id, 'partial', parseAmount(refundStr))
+                  showToast('已按净额入账')
+                  props.onClose()
+                }}
+              >
+                退这么多
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="field-row">
+        <div className="field grow" style={{ marginBottom: 0 }}>
           <label>大类</label>
           <select
             value={cat}
@@ -273,10 +323,10 @@ function EditSheet(props: { t: Transaction; onClose: () => void }) {
             ))}
           </select>
         </div>
-        <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+        <div className="field grow" style={{ marginBottom: 0 }}>
           <label>小类</label>
           <select value={sub ?? ''} onChange={(e) => setSub(e.target.value || null)} disabled={subs.length === 0}>
-            <option value="">一般</option>
+            <option value="">不细分</option>
             {subs.map((c) => (
               <option key={c.key} value={c.key}>
                 {c.emoji} {c.label}
@@ -285,17 +335,19 @@ function EditSheet(props: { t: Transaction; onClose: () => void }) {
           </select>
         </div>
       </div>
+
       <div className="field">
         <label>备注</label>
         <input type="text" maxLength={20} value={note} onChange={(e) => setNote(e.target.value)} />
       </div>
-      <div className="btn-row" style={{ marginBottom: 12 }}>
-        <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+
+      <div className="field-row">
+        <div className="field grow" style={{ marginBottom: 0 }}>
           <label>日期</label>
           <input type="date" value={date} max={todayStr()} onChange={(e) => e.target.value && setDate(e.target.value)} />
         </div>
         {t.type === 'expense' && (
-          <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+          <div className="field grow" style={{ marginBottom: 0 }}>
             <label>旅行标签</label>
             <select value={tripId ?? ''} onChange={(e) => setTripId(e.target.value || null)}>
               <option value="">无</option>
@@ -308,68 +360,6 @@ function EditSheet(props: { t: Transaction; onClose: () => void }) {
           </div>
         )}
       </div>
-
-      {t.type === 'expense' && (
-        <div className="card" style={{ background: 'var(--expense-soft)', boxShadow: 'none' }}>
-          <div className="card-title" style={{ marginBottom: refundMode || t.refund_status !== 'none' ? 10 : 0 }}>
-            <span>退款处理{t.refund_status !== 'none' ? `（已退 ${fmtCny(t.refund_amount)}）` : ''}</span>
-            {!refundMode && t.refund_status === 'none' && (
-              <button className="link-btn" onClick={() => setRefundMode(true)}>
-                标记退款
-              </button>
-            )}
-            {t.refund_status !== 'none' && (
-              <button
-                className="link-btn"
-                onClick={() => {
-                  markRefund(t.id, 'none')
-                  showToast('已取消退款标记')
-                  props.onClose()
-                }}
-              >
-                取消退款
-              </button>
-            )}
-          </div>
-          {refundMode && t.refund_status === 'none' && (
-            <>
-              <button
-                className="btn ghost"
-                style={{ marginBottom: 8 }}
-                onClick={() => {
-                  markRefund(t.id, 'full')
-                  showToast('整笔已冲销为 0')
-                  props.onClose()
-                }}
-              >
-                整笔退款（冲销为 0）
-              </button>
-              <div className="btn-row">
-                <input
-                  className="num"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="部分退款金额"
-                  value={refundStr}
-                  onChange={(e) => setRefundStr(e.target.value)}
-                  style={{ flex: 1, border: '1px solid var(--line)', borderRadius: 11, padding: '10px 12px', background: '#fff' }}
-                />
-                <button
-                  className="btn sm"
-                  disabled={!Number.isFinite(parseAmount(refundStr)) || parseAmount(refundStr) <= 0}
-                  onClick={() => {
-                    markRefund(t.id, 'partial', parseAmount(refundStr))
-                    showToast('已按净额入账')
-                    props.onClose()
-                  }}
-                >
-                  退这么多
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
 
       <button className="btn" onClick={doSave} style={{ marginBottom: 10 }}>
         保存修改

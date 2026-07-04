@@ -118,30 +118,18 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
     }
   }
 
-  // 长按识别
-  const pressTimer = useRef<ReturnType<typeof setTimeout>>()
-  const longFired = useRef(false)
-
-  function cellDown(cat: Category) {
-    longFired.current = false
-    const subs = subCategories(data, cat.key)
-    if (subs.length === 0) return
-    pressTimer.current = setTimeout(() => {
-      longFired.current = true
-      if (navigator.vibrate) navigator.vibrate(8)
-      setSubSheet(cat)
-    }, 420)
-  }
-  function cellUp(cat: Category) {
-    clearTimeout(pressTimer.current)
-    if (longFired.current) return
-    if (preselCat && preselCat.cat === cat.key) {
-      save(cat.key, preselCat.sub)
-    } else if (preselCat) {
-      setPreselCat({ cat: cat.key, sub: null })
-    } else {
-      save(cat.key, null)
+  // 点大类：有小类就拉起小类选择（图二那样），没有小类则直接记大类
+  function pickMajor(cat: Category) {
+    if (!hasAmount) {
+      showToast('先输入金额')
+      return
     }
+    const subs = subCategories(data, cat.key)
+    if (subs.length === 0) {
+      save(cat.key, null)
+      return
+    }
+    setSubSheet(cat)
   }
 
   const trips = data.trips
@@ -217,10 +205,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
             <button
               key={c.key}
               className={`cat-cell ${preselCat?.cat === c.key ? 'selected' : ''}`}
-              onPointerDown={() => cellDown(c)}
-              onPointerUp={() => cellUp(c)}
-              onPointerLeave={() => clearTimeout(pressTimer.current)}
-              onContextMenu={(e) => e.preventDefault()}
+              onClick={() => pickMajor(c)}
             >
               <span className="ico" style={{ background: catColor(c.key), color: catFg(c.key) }}>
                 <CatGlyph keyName={c.key} emoji={c.emoji} size={24} />
@@ -248,35 +233,30 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
         ))}
       </div>
 
-      {subSheet && (
-        <Sheet title={`${subSheet.emoji} ${subSheet.label} · 选小类`} onClose={() => setSubSheet(null)}>
-          <div className="opt-list">
-            <button
-              className="opt"
-              onClick={() => {
-                setSubSheet(null)
-                save(subSheet.key, null)
-              }}
-            >
-              一般（只记大类）
+      {subSheet && (() => {
+        const major = subSheet
+        // 点空白/关闭/选“不细分” = 记大类不记小类；选小类 = 记到小类
+        const recordMajorOnly = () => { setSubSheet(null); save(major.key, null) }
+        return (
+          <Sheet title={`${major.label} · 选个小类（可不选）`} onClose={recordMajorOnly}>
+            <button className="opt" onClick={recordMajorOnly}>
+              <span>就记「{major.label}」</span>
+              <span className="sub">不细分小类</span>
             </button>
-            {subCategories(data, subSheet.key).map((sc) => (
-              <button
-                key={sc.key}
-                className="opt"
-                onClick={() => {
-                  setSubSheet(null)
-                  save(subSheet.key, sc.key)
-                }}
-              >
-                <span>
-                  {sc.emoji} {sc.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Sheet>
-      )}
+            <div className="opt-list" style={{ marginTop: 8 }}>
+              {subCategories(data, major.key).map((sc) => (
+                <button
+                  key={sc.key}
+                  className="opt"
+                  onClick={() => { setSubSheet(null); save(major.key, sc.key) }}
+                >
+                  <span>{sc.emoji} {sc.label}</span>
+                </button>
+              ))}
+            </div>
+          </Sheet>
+        )
+      })()}
 
       {dateSheet && (
         <Sheet title="记账日期" onClose={() => setDateSheet(false)}>
