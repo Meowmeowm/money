@@ -26,6 +26,8 @@ export type CardKind = 'count' | 'balance'
 export interface Card {
   id: string
   name: string
+  category: string | null // 卡消费所属大类（用于“消费水平”口径把划卡价值归类）
+  subcategory: string | null
   kind: CardKind
   total_price: number | null // 次卡总价
   total_count: number | null // 次卡总次数

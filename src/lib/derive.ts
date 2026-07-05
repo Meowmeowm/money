@@ -20,6 +20,8 @@ export function monthSummary(data: AppData, mk: string, includeCards: boolean): 
     if (t.type === 'income') income += t.amount_cny
     else if (includeCards || !t.is_card_purchase) expense += t.amount_cny
   }
+  // 消费水平口径：并入本月划卡的折算价值（按摩用 1 次、画画用 1 次…）
+  if (!includeCards) expense += cardUsageInMonth(data, mk).total
   return { expense: round2(expense), income: round2(income), balance: round2(income - expense) }
 }
 
@@ -51,6 +53,30 @@ export function categoryBreakdown(data: AppData, mk: string, includeCards: boole
       e.count += 1
       map.set(t.category, e)
       total += t.amount_cny
+    }
+  }
+  // 消费水平口径：把本月划卡的折算价值按“卡所属分类”并入分类占比
+  if (!includeCards) {
+    for (const u of data.card_usages) {
+      if (monthKey(u.used_at) !== mk) continue
+      const card = data.cards.find((c) => c.id === u.card_id)
+      if (!card) continue
+      const cardCat = card.category ?? 'other'
+      if (parentKey) {
+        if (cardCat !== parentKey) continue
+        const k = card.subcategory ?? '_none'
+        const e = map.get(k) ?? { amount: 0, count: 0 }
+        e.amount += u.equivalent_cny
+        e.count += 1
+        map.set(k, e)
+        total += u.equivalent_cny
+      } else {
+        const e = map.get(cardCat) ?? { amount: 0, count: 0 }
+        e.amount += u.equivalent_cny
+        e.count += 1
+        map.set(cardCat, e)
+        total += u.equivalent_cny
+      }
     }
   }
   return [...map.entries()]

@@ -93,7 +93,7 @@ export default function DetailsPage() {
       {budgetOn && (
         <div className="bill-budget">
           <div className="top">
-            <span style={{ color: 'var(--ink-2)' }}>预算使用{s.budget_include_cards ? '' : '（不含充值卡）'}</span>
+            <span style={{ color: 'var(--ink-2)' }}>预算使用{s.budget_include_cards ? '' : '（消费水平）'}</span>
             <span
               className="pct num"
               style={{ color: budgetSpent / (s.budget_total ?? 1) >= 1 ? 'var(--expense)' : budgetSpent / (s.budget_total ?? 1) >= 0.8 ? 'var(--warn)' : 'var(--income)' }}

@@ -50,8 +50,8 @@ export default function StatsPage() {
           <span>本月汇总</span>
           <Segmented
             options={[
-              { value: 'excl', label: '不含充值卡' },
-              { value: 'incl', label: '含充值卡' },
+              { value: 'incl', label: '真实花销' },
+              { value: 'excl', label: '消费水平' },
             ]}
             value={includeCards ? 'incl' : 'excl'}
             onChange={(v) => updateSettings({ stats_include_cards: v === 'incl' })}
@@ -79,7 +79,7 @@ export default function StatsPage() {
 
       <div className="card">
         <div className="card-title">
-          <span>分类占比{includeCards ? '' : '（不含充值卡）'}</span>
+          <span>分类占比{includeCards ? '' : '（消费水平·含划卡）'}</span>
         </div>
         {ranks.length === 0 && <div className="empty">本月还没有支出</div>}
         {ranks.map((r) => (
@@ -104,7 +104,7 @@ export default function StatsPage() {
       </div>
 
       <div className="card">
-        <div className="card-title"><span>本月卡消耗（非现金，不计入上方支出）</span></div>
+        <div className="card-title"><span>本月卡消耗{includeCards ? '（非现金，未计入真实花销）' : '（已并入上方消费水平）'}</span></div>
         {consume.rows.length === 0 && <div className="empty">本月没有划卡记录</div>}
         {consume.rows.map((row) => (
           <div className="consume-row" key={row.card.id}>
@@ -218,7 +218,7 @@ function BudgetBlock(props: {
   return (
     <div className="card">
       <div className="card-title">
-        <span>本月预算{props.includeCards ? '（含充值卡）' : '（不含充值卡）'}</span>
+        <span>本月预算{props.includeCards ? '（真实花销）' : '（消费水平）'}</span>
         <span className="num" style={{ fontWeight: 700, color: pct >= 1 ? 'var(--expense)' : 'var(--ink)' }}>
           剩 {fmtCny(Math.max(0, props.total - props.spent))}
         </span>

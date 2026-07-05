@@ -215,6 +215,8 @@ export function markRefund(id: string, kind: 'full' | 'partial' | 'none', refund
 
 export interface NewCardInput {
   name: string
+  category?: string | null
+  subcategory?: string | null
   kind: 'count' | 'balance'
   totalPrice?: number
   totalCount?: number
@@ -227,6 +229,8 @@ export function addCard(input: NewCardInput): Card {
   const c: Card = {
     id: uid(),
     name: input.name,
+    category: input.category ?? null,
+    subcategory: input.subcategory ?? null,
     kind: input.kind,
     total_price: input.kind === 'count' ? round2(input.totalPrice ?? 0) : null,
     total_count: input.kind === 'count' ? Math.max(1, Math.round(input.totalCount ?? 1)) : null,

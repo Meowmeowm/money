@@ -37,7 +37,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
   const [curSheet, setCurSheet] = useState(false)
   const [tripSheet, setTripSheet] = useState(false)
   const [tplSheet, setTplSheet] = useState(false)
-  const [cardLink, setCardLink] = useState<{ amount: number; sub: string | null } | null>(null)
+  const [cardLink, setCardLink] = useState<{ amount: number; cat: string; sub: string | null } | null>(null)
 
   const majors = useMemo(() => majorCategories(data, type), [data, type])
   const amount = parseAmount(amountStr)
@@ -117,7 +117,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
     const savedAmount = amountCny
     resetForm()
     if (type === 'expense' && isCardPurchase) {
-      setCardLink({ amount: savedAmount, sub })
+      setCardLink({ amount: savedAmount, cat, sub })
     }
   }
 
@@ -341,6 +341,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
       {cardLink && (
         <CardLinkSheet
           amount={cardLink.amount}
+          cat={cardLink.cat}
           sub={cardLink.sub}
           onClose={() => setCardLink(null)}
         />
@@ -507,7 +508,7 @@ function TemplateSheet(props: {
 }
 
 /** 记完充值卡支出后：一步建卡/续卡 */
-function CardLinkSheet(props: { amount: number; sub: string | null; onClose: () => void }) {
+function CardLinkSheet(props: { amount: number; cat: string; sub: string | null; onClose: () => void }) {
   const { data } = useStore()
   const [mode, setMode] = useState<'menu' | 'new-count' | 'new-balance' | 'renew'>('menu')
   const [renewFrom, setRenewFrom] = useState<string | null>(null)
@@ -595,6 +596,8 @@ function CardLinkSheet(props: { amount: number; sub: string | null; onClose: () 
         onClick={() => {
           const input = {
             name: name.trim(),
+            category: props.cat,
+            subcategory: props.sub,
             kind: (isCount ? 'count' : 'balance') as 'count' | 'balance',
             totalPrice: props.amount,
             totalCount: isCount ? Math.round(count) : undefined,

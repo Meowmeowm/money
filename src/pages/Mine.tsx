@@ -292,11 +292,14 @@ function CardDetailSheet(props: { cardId: string; onClose: () => void }) {
 
 function NewCardSheet(props: { onClose: () => void; renewFrom?: Card; afterSave?: () => void }) {
   const r = props.renewFrom
+  const { data } = useStore()
   const [kind, setKind] = useState<'count' | 'balance'>(r?.kind ?? 'count')
   const [name, setName] = useState(r?.name ?? '')
   const [priceStr, setPriceStr] = useState(r ? String(r.kind === 'count' ? r.total_price ?? '' : r.balance ?? '') : '')
   const [countStr, setCountStr] = useState(r?.total_count ? String(r.total_count) : '')
   const [expire, setExpire] = useState('')
+  const [cardCat, setCardCat] = useState<string>(r?.category ?? 'beauty')
+  const [cardSub, setCardSub] = useState<string | null>(r?.subcategory ?? null)
   const price = parseAmount(priceStr)
   const count = parseAmount(countStr)
   const valid = name.trim() && Number.isFinite(price) && price > 0 && (kind === 'balance' || (Number.isFinite(count) && count >= 1))
@@ -315,6 +318,25 @@ function NewCardSheet(props: { onClose: () => void; renewFrom?: Card; afterSave?
         <label>名称</label>
         <input type="text" maxLength={12} placeholder="如 健身私教 / 画画课" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
+      <div className="field-row">
+        <div className="field grow" style={{ marginBottom: 0 }}>
+          <label>属于哪类消费</label>
+          <select value={cardCat} onChange={(e) => { setCardCat(e.target.value); setCardSub(null) }}>
+            {majorCategories(data, 'expense').map((c) => (
+              <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="field grow" style={{ marginBottom: 0 }}>
+          <label>小类</label>
+          <select value={cardSub ?? ''} onChange={(e) => setCardSub(e.target.value || null)} disabled={subCategories(data, cardCat).length === 0}>
+            <option value="">不细分</option>
+            {subCategories(data, cardCat).map((c) => (
+              <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
       <div className="field">
         <label>{kind === 'count' ? '总价（¥）' : '充值金额（¥）'}</label>
         <input className="num" type="text" inputMode="decimal" value={priceStr} onChange={(e) => setPriceStr(e.target.value)} />
@@ -330,7 +352,7 @@ function NewCardSheet(props: { onClose: () => void; renewFrom?: Card; afterSave?
         <input type="date" value={expire} onChange={(e) => setExpire(e.target.value)} />
       </div>
       <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 10 }}>
-        提示：办卡的现金支出请在记账页正常记一笔「充值卡」，那里也能一步建卡
+        提示：卡消费会按上面选的「哪类消费」，折算进统计的「消费水平」口径
       </div>
       <button
         className="btn"
@@ -338,6 +360,8 @@ function NewCardSheet(props: { onClose: () => void; renewFrom?: Card; afterSave?
         onClick={() => {
           const input = {
             name: name.trim(), kind,
+            category: cardCat,
+            subcategory: cardSub,
             totalPrice: kind === 'count' ? price : undefined,
             totalCount: kind === 'count' ? Math.round(count) : undefined,
             balance: kind === 'balance' ? price : undefined,
@@ -433,7 +457,7 @@ function BudgetSheet(props: { onClose: () => void }) {
           </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, margin: '0 2px 12px' }}>
             <input type="checkbox" checked={includeCards} onChange={(e) => setIncludeCards(e.target.checked)} style={{ width: 18, height: 18 }} />
-            预算口径包含充值卡（默认不含）
+            预算算「真实花销」（含办卡大额）；不勾则按「消费水平」
           </label>
           <div className="card">
             <div className="card-title"><span>分大类预算（选填）</span></div>
