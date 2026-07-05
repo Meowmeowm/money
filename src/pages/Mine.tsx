@@ -204,6 +204,39 @@ function CardDetailSheet(props: { cardId: string; onClose: () => void }) {
         </div>
       </div>
 
+      <div className="card">
+        <div className="field-row">
+          <div className="field grow" style={{ marginBottom: 0 }}>
+            <label>属于哪类消费</label>
+            <select
+              value={card.category ?? ''}
+              onChange={(e) => updateCard(card.id, { category: e.target.value || null, subcategory: null })}
+            >
+              <option value="">未归类（算进「其他」）</option>
+              {majorCategories(data, 'expense').map((c) => (
+                <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="field grow" style={{ marginBottom: 0 }}>
+            <label>小类</label>
+            <select
+              value={card.subcategory ?? ''}
+              onChange={(e) => updateCard(card.id, { subcategory: e.target.value || null })}
+              disabled={!card.category || subCategories(data, card.category).length === 0}
+            >
+              <option value="">不细分</option>
+              {card.category && subCategories(data, card.category).map((c) => (
+                <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 6 }}>
+          划卡价值按这里归类进「消费水平」；不设则落进「其他」
+        </div>
+      </div>
+
       {card.status === 'active' && (
         <div className="card">
           <div className="field">
