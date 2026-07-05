@@ -18,7 +18,7 @@ export function monthSummary(data: AppData, mk: string, includeCards: boolean): 
   let income = 0
   for (const t of txInMonth(data, mk)) {
     if (t.type === 'income') income += t.amount_cny
-    else if (includeCards || t.category !== CAT_CARDS) expense += t.amount_cny
+    else if (includeCards || !t.is_card_purchase) expense += t.amount_cny
   }
   return { expense: round2(expense), income: round2(income), balance: round2(income - expense) }
 }
@@ -36,7 +36,7 @@ export function categoryBreakdown(data: AppData, mk: string, includeCards: boole
   let total = 0
   for (const t of txInMonth(data, mk)) {
     if (t.type !== 'expense') continue
-    if (!includeCards && t.category === CAT_CARDS) continue
+    if (!includeCards && t.is_card_purchase) continue
     if (parentKey) {
       if (t.category !== parentKey) continue
       const k = t.subcategory ?? '_none'

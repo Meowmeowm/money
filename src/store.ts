@@ -146,6 +146,7 @@ export interface NewTxInput {
   note?: string
   date?: string
   tripId?: string | null
+  isCardPurchase?: boolean
   templateId?: string | null
 }
 
@@ -164,6 +165,7 @@ export function addTransaction(input: NewTxInput): Transaction {
     trip_id: input.tripId ?? null,
     refund_status: 'none',
     refund_amount: 0,
+    is_card_purchase: input.isCardPurchase ?? false,
     template_id: input.templateId ?? null,
     created_at: nowIso(),
     updated_at: nowIso(),

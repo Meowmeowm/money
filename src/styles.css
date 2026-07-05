@@ -471,6 +471,7 @@ input, select { outline: none; }
   background: #fff; color: var(--ink-2); font-size: 14px; font-weight: 600;
 }
 .refund-chip.on { background: var(--expense-soft); border-color: var(--expense); color: var(--expense); }
+.refund-chip.on-card { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
 
 .btn {
   display: block; width: 100%;

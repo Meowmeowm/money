@@ -30,6 +30,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
   const [preselCat, setPreselCat] = useState<{ cat: string; sub: string | null } | null>(null)
   const [hint, setHint] = useState<string | null>(null)
   const [pop, setPop] = useState(0)
+  const [isCardPurchase, setIsCardPurchase] = useState(false)
 
   const [subSheet, setSubSheet] = useState<Category | null>(null)
   const [dateSheet, setDateSheet] = useState(false)
@@ -89,6 +90,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
     setTripOverride('default')
     setPreselCat(null)
     setHint(null)
+    setIsCardPurchase(false)
   }
 
   function save(cat: string, sub: string | null) {
@@ -108,12 +110,13 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
       note,
       date,
       tripId: type === 'expense' ? effTripId : null,
+      isCardPurchase: type === 'expense' ? isCardPurchase : false,
     })
     setPop((n) => n + 1)
     showToast(`已记下 ${fmtCny(amountCny)}`)
     const savedAmount = amountCny
     resetForm()
-    if (type === 'expense' && cat === CAT_CARDS) {
+    if (type === 'expense' && isCardPurchase) {
       setCardLink({ amount: savedAmount, sub })
     }
   }
@@ -182,6 +185,14 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
             }}
           >
             ✈️ {effTrip ? effTrip.name : '旅行'}
+          </button>
+        )}
+        {type === 'expense' && (
+          <button
+            className={`chip ${isCardPurchase ? 'on' : ''}`}
+            onClick={() => setIsCardPurchase((v) => !v)}
+          >
+            🎫 {isCardPurchase ? '办卡/充值' : '办卡'}
           </button>
         )}
         <button className="chip" onClick={() => setTplSheet(true)}>
@@ -509,7 +520,7 @@ function CardLinkSheet(props: { amount: number; sub: string | null; onClose: () 
     return (
       <Sheet title="🎫 关联充值卡？" onClose={props.onClose}>
         <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 12 }}>
-          这笔 {fmtCny(props.amount)} 已记为充值卡支出，可顺手建卡/续卡（划卡消费永不重复计支出）
+          这笔 {fmtCny(props.amount)} 已标记办卡/充值，可顺手建卡/续卡（之后划卡消费永不重复计支出）
         </div>
         <div className="opt-list">
           <button className="opt" onClick={() => setMode('new-count')}>

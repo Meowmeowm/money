@@ -160,6 +160,7 @@ function TxRow(props: { t: Transaction; onTap: () => void }) {
           {trip && <span className="badge">✈️ {trip.name}</span>}
           {t.refund_status === 'full' && <span className="badge rf">已退款</span>}
           {t.refund_status === 'partial' && <span className="badge rf">部分退款 -{fmtMoney(t.refund_amount)}</span>}
+          {t.is_card_purchase && <span className="badge">🎫 办卡</span>}
           <span>{hm}</span>
           {t.note && <span>· {t.note}</span>}
         </span>
@@ -191,6 +192,7 @@ function EditSheet(props: { t: Transaction; onClose: () => void }) {
   const [note, setNote] = useState(t.note)
   const [date, setDate] = useState(t.date)
   const [tripId, setTripId] = useState<string | null>(t.trip_id)
+  const [isCard, setIsCard] = useState(t.is_card_purchase ?? false)
   const [refundMode, setRefundMode] = useState(false)
   const [refundStr, setRefundStr] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
@@ -220,6 +222,7 @@ function EditSheet(props: { t: Transaction; onClose: () => void }) {
       note: note.slice(0, 20),
       date,
       trip_id: tripId,
+      is_card_purchase: isCard,
     })
     showToast('已保存')
     props.onClose()
@@ -335,6 +338,17 @@ function EditSheet(props: { t: Transaction; onClose: () => void }) {
           </select>
         </div>
       </div>
+
+      {t.type === 'expense' && (
+        <div className="refund-row" style={{ marginBottom: 12 }}>
+          <button
+            className={`refund-chip ${isCard ? 'on-card' : ''}`}
+            onClick={() => setIsCard((v) => !v)}
+          >
+            🎫 {isCard ? '办卡/充值 · 已标记（不含卡口径会剔除）' : '标记为办卡/充值'}
+          </button>
+        </div>
+      )}
 
       <div className="field">
         <label>备注</label>

@@ -15,6 +15,7 @@ export interface Transaction {
   trip_id: string | null
   refund_status: RefundStatus
   refund_amount: number
+  is_card_purchase: boolean // 办卡/充值：归本类别，但可被“不含充值卡”口径剔除
   template_id: string | null
   created_at: string
   updated_at: string

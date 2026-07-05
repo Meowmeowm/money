@@ -150,7 +150,7 @@ export default function StatsPage() {
 
       {drill && (
         <Sheet title={`${catEmoji(data, drill)} ${catLabel(data, drill)} · ${monthLabel(mk)}`} onClose={() => setDrill(null)}>
-          <DrillList mk={mk} parent={drill} includeCards={includeCards || drill === CAT_CARDS} />
+          <DrillList mk={mk} parent={drill} includeCards={includeCards} />
         </Sheet>
       )}
 
