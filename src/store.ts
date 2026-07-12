@@ -148,6 +148,7 @@ export interface NewTxInput {
   date?: string
   tripId?: string | null
   isCardPurchase?: boolean
+  fromSavings?: boolean // 从存钱卡付：照记花销，并自动在存钱卡记一笔取出
   templateId?: string | null
 }
 
@@ -174,6 +175,10 @@ export function addTransaction(input: NewTxInput): Transaction {
   setData((d) => ({ ...d, transactions: [t, ...d.transactions] }))
   enqueue('transactions', 'upsert', t.id, t as never)
   scheduleFlush()
+  // 从存钱卡付：同步在存钱卡记一笔取出（消费类，进净存扣减）
+  if (input.fromSavings && t.type === 'expense' && t.amount_cny > 0) {
+    addSavingsMove({ type: 'out', amount: t.amount_cny, date: t.date, note: t.note || '存钱卡消费' })
+  }
   return t
 }
 

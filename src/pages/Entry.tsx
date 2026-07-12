@@ -31,6 +31,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
   const [hint, setHint] = useState<string | null>(null)
   const [pop, setPop] = useState(0)
   const [isCardPurchase, setIsCardPurchase] = useState(false)
+  const [fromSavings, setFromSavings] = useState(false)
 
   const [subSheet, setSubSheet] = useState<Category | null>(null)
   const [dateSheet, setDateSheet] = useState(false)
@@ -91,6 +92,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
     setPreselCat(null)
     setHint(null)
     setIsCardPurchase(false)
+    setFromSavings(false)
   }
 
   function save(cat: string, sub: string | null) {
@@ -111,6 +113,7 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
       date,
       tripId: type === 'expense' ? effTripId : null,
       isCardPurchase: type === 'expense' ? isCardPurchase : false,
+      fromSavings: type === 'expense' ? fromSavings : false,
     })
     setPop((n) => n + 1)
     showToast(`已记下 ${fmtCny(amountCny)}`)
@@ -193,6 +196,14 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
             onClick={() => setIsCardPurchase((v) => !v)}
           >
             🎫 {isCardPurchase ? '办卡/充值' : '办卡'}
+          </button>
+        )}
+        {type === 'expense' && data.savings && (
+          <button
+            className={`chip ${fromSavings ? 'on' : ''}`}
+            onClick={() => setFromSavings((v) => !v)}
+          >
+            🐷 {fromSavings ? '存钱卡付' : '存钱卡'}
           </button>
         )}
         <button className="chip" onClick={() => setTplSheet(true)}>

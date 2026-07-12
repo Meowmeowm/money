@@ -57,6 +57,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   c('living_phone', 'living', '话费网费', '📶', 'expense', 82),
   c('living_mortgage', 'living', '房贷补足', '🏦', 'expense', 83),
   c('living_utility', 'living', '水电燃气', '💡', 'expense', 84),
+  c('medical_insurance', 'medical', '保险', '🛡️', 'expense', 101),
   c('fun_sub', 'fun', '影音会员', '📺', 'expense', 90),
   c('fun_game', 'fun', '游戏', '🕹️', 'expense', 91),
   c('fun_show', 'fun', '电影演出', '🎬', 'expense', 92),

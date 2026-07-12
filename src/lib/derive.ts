@@ -6,6 +6,34 @@ export function txInMonth(data: AppData, mk: string): Transaction[] {
   return data.transactions.filter((t) => monthKey(t.date) === mk)
 }
 
+function monthDiff(from: string, to: string): number {
+  const [fy, fm] = from.split('-').map(Number)
+  const [ty, tm] = to.split('-').map(Number)
+  return (ty - fy) * 12 + (tm - fm)
+}
+
+/** 消费型保险缴费当月的全额（计入真实花销） */
+export function insuranceRealInMonth(data: AppData, mk: string): number {
+  let sum = 0
+  for (const p of data.insurances) {
+    if (p.kind !== 'protect' || p.paid_year == null) continue
+    if (`${p.paid_year}-${String(p.pay_month).padStart(2, '0')}` === mk) sum += p.annual
+  }
+  return round2(sum)
+}
+
+/** 消费型保险按 12 个月摊平后当月的折算额（计入消费水平） */
+export function insuranceAmortInMonth(data: AppData, mk: string): number {
+  let sum = 0
+  for (const p of data.insurances) {
+    if (p.kind !== 'protect' || p.paid_year == null) continue
+    const start = `${p.paid_year}-${String(p.pay_month).padStart(2, '0')}`
+    const d = monthDiff(start, mk)
+    if (d >= 0 && d < 12) sum += p.annual / 12
+  }
+  return round2(sum)
+}
+
 export interface MonthSummary {
   expense: number
   income: number
@@ -22,6 +50,8 @@ export function monthSummary(data: AppData, mk: string, includeCards: boolean): 
   }
   // 消费水平口径：并入本月划卡的折算价值（按摩用 1 次、画画用 1 次…）
   if (!includeCards) expense += cardUsageInMonth(data, mk).total
+  // 消费型保险：真实花销记缴费月全额，消费水平按 12 个月摊
+  expense += includeCards ? insuranceRealInMonth(data, mk) : insuranceAmortInMonth(data, mk)
   return { expense: round2(expense), income: round2(income), balance: round2(income - expense) }
 }
 
@@ -78,6 +108,24 @@ export function categoryBreakdown(data: AppData, mk: string, includeCards: boole
         total += u.equivalent_cny
       }
     }
+  }
+  // 消费型保险并入「医疗 / 保险」（真实花销记缴费月全额；消费水平按月摊）
+  for (const p of data.insurances) {
+    if (p.kind !== 'protect' || p.paid_year == null) continue
+    const start = `${p.paid_year}-${String(p.pay_month).padStart(2, '0')}`
+    let amt = 0
+    if (includeCards) { if (start === mk) amt = p.annual }
+    else { const d = monthDiff(start, mk); if (d >= 0 && d < 12) amt = p.annual / 12 }
+    if (amt <= 0) continue
+    if (parentKey) {
+      if (parentKey !== 'medical') continue
+      const e = map.get('medical_insurance') ?? { amount: 0, count: 0 }
+      e.amount += amt; e.count += 1; map.set('medical_insurance', e)
+    } else {
+      const e = map.get('medical') ?? { amount: 0, count: 0 }
+      e.amount += amt; e.count += 1; map.set('medical', e)
+    }
+    total += amt
   }
   return [...map.entries()]
     .map(([key, v]) => ({ key, amount: round2(v.amount), count: v.count, pct: total > 0 ? v.amount / total : 0 }))
