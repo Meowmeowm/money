@@ -536,7 +536,7 @@ export interface NewInsuranceInput {
   kind: InsuranceKind
   annual: number
   payMonth: number
-  paidYear?: number | null
+  paidYear?: number | null // 若给定则为该年份留一条缴费记录（金额取 annual）
   note?: string
 }
 
@@ -547,7 +547,7 @@ export function addInsurance(input: NewInsuranceInput): Insurance {
     kind: input.kind,
     annual: round2(input.annual),
     pay_month: input.payMonth,
-    paid_year: input.paidYear ?? null,
+    payments: input.paidYear != null ? [{ year: input.paidYear, amount: round2(input.annual) }] : [],
     note: input.note ?? '',
     created_at: nowIso(),
     updated_at: nowIso(),
@@ -561,6 +561,31 @@ export function updateInsurance(id: string, patch: Partial<Insurance>) {
   setData((d) => ({
     ...d,
     insurances: d.insurances.map((p) => (p.id === id ? { ...p, ...patch, updated_at: nowIso() } : p)),
+  }))
+  persistInsurances()
+}
+
+/** 标记某年已缴（新增或更新该年记录，历史其它年份不动） */
+export function setInsurancePayment(id: string, year: number, amount: number) {
+  setData((d) => ({
+    ...d,
+    insurances: d.insurances.map((p) => {
+      if (p.id !== id) return p
+      const others = p.payments.filter((x) => x.year !== year)
+      const payments = [...others, { year, amount: round2(amount) }].sort((a, b) => a.year - b.year)
+      return { ...p, payments, updated_at: nowIso() }
+    }),
+  }))
+  persistInsurances()
+}
+
+/** 撤销某年的缴费记录 */
+export function removeInsurancePayment(id: string, year: number) {
+  setData((d) => ({
+    ...d,
+    insurances: d.insurances.map((p) =>
+      p.id === id ? { ...p, payments: p.payments.filter((x) => x.year !== year), updated_at: nowIso() } : p,
+    ),
   }))
   persistInsurances()
 }

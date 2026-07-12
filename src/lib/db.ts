@@ -36,6 +36,21 @@ export function defaultData(): AppData {
   }
 }
 
+/** 兼容旧数据：把 paid_year 单字段迁移成 payments 逐年记录 */
+export function normalizeInsurances(list: unknown): AppData['insurances'] {
+  if (!Array.isArray(list)) return []
+  return list.map((raw) => {
+    const p = raw as Record<string, unknown>
+    let payments = p.payments
+    if (!Array.isArray(payments)) {
+      const py = p.paid_year
+      payments = typeof py === 'number' ? [{ year: py, amount: Number(p.annual) || 0 }] : []
+    }
+    const { paid_year: _drop, ...rest } = p
+    return { ...rest, payments } as AppData['insurances'][number]
+  })
+}
+
 export function loadLocal(): AppData {
   try {
     const raw = localStorage.getItem(STATE_KEY)
@@ -45,6 +60,7 @@ export function loadLocal(): AppData {
     return {
       ...base,
       ...parsed,
+      insurances: normalizeInsurances(parsed.insurances),
       settings: { ...base.settings, ...(parsed.settings ?? {}) },
       categories: parsed.categories && parsed.categories.length > 0 ? parsed.categories : base.categories,
     }
@@ -181,7 +197,7 @@ export async function pullAll(): Promise<AppData | null> {
       categories: remoteCats.length > 0 ? remoteCats : base.categories,
       housing_fund: (kvMap['housing_fund'] as AppData['housing_fund']) ?? null,
       savings: (kvMap['savings'] as AppData['savings']) ?? null,
-      insurances: (kvMap['insurances'] as AppData['insurances']) ?? [],
+      insurances: normalizeInsurances(kvMap['insurances']),
       settings: { ...base.settings, ...((kvMap['settings'] as Partial<Settings>) ?? {}) },
     }
   } catch {

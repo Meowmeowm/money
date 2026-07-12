@@ -119,13 +119,18 @@ export interface Savings {
 
 export type InsuranceKind = 'protect' | 'savings' // 消费型保障 / 储蓄型
 
+export interface InsurancePayment {
+  year: number // 缴费年份
+  amount: number // 当年实缴保费（保费逐年可变，各年独立留档）
+}
+
 export interface Insurance {
   id: string
   name: string
   kind: InsuranceKind
-  annual: number // 年缴保费
+  annual: number // 当前年缴保费（新一年缴费时的默认金额）
   pay_month: number // 缴费月 1-12
-  paid_year: number | null // 最近已缴年份（判断今年是否已缴 + 提醒）
+  payments: InsurancePayment[] // 逐年缴费记录（每年一条，历史不被覆盖）
   note: string
   created_at: string
   updated_at: string

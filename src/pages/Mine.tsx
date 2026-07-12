@@ -5,7 +5,7 @@ import {
   updateSettings, setHousingFund, deleteTemplate, updateTrip, deleteTrip, setActiveTrip,
   upsertCategory, deleteCategory, signOut, showToast,
   setSavingsOpening, addSavingsMove, updateSavingsMove, deleteSavingsMove, setLoanRepaid,
-  addInsurance, updateInsurance, deleteInsurance,
+  addInsurance, updateInsurance, deleteInsurance, setInsurancePayment, removeInsurancePayment,
 } from '../store'
 import {
   cardWarnState, cardUnitPrice, seriesStats, usagesOfCard, housingFundStatus,
@@ -683,9 +683,15 @@ function InsuranceSheet(props: { onClose: () => void }) {
   const reset = () => { setEditId(null); setName(''); setKind('protect'); setAnnualStr(''); setPayMonth(7); setPaid(true) }
   const submit = () => {
     if (!valid) return
-    const payload = { name: name.trim(), kind, annual, payMonth, paidYear: paid ? thisYear : null }
-    if (editId) { updateInsurance(editId, { ...payload, pay_month: payMonth, paid_year: paid ? thisYear : null }); showToast('已修改') }
-    else { addInsurance(payload); showToast('已添加') }
+    if (editId) {
+      updateInsurance(editId, { name: name.trim(), kind, annual, pay_month: payMonth })
+      if (paid) setInsurancePayment(editId, thisYear, annual)
+      else removeInsurancePayment(editId, thisYear)
+      showToast('已修改')
+    } else {
+      addInsurance({ name: name.trim(), kind, annual, payMonth, paidYear: paid ? thisYear : null })
+      showToast('已添加')
+    }
     reset()
   }
 
@@ -728,19 +734,30 @@ function InsuranceSheet(props: { onClose: () => void }) {
       {data.insurances.length > 0 && (
         <div className="card">
           <div className="card-title"><span>我的保险（{data.insurances.length}）</span></div>
-          {data.insurances.map((p) => (
+          {data.insurances.map((p) => {
+            const paidThisYear = p.payments.some((x) => x.year === thisYear)
+            const years = p.payments.map((x) => x.year).sort((a, b) => a - b)
+            return (
             <div className="consume-row" key={p.id}>
               <button className="link-btn" style={{ textAlign: 'left', padding: 0, color: 'var(--ink)' }}
-                onClick={() => { setEditId(p.id); setName(p.name); setKind(p.kind); setAnnualStr(String(p.annual)); setPayMonth(p.pay_month); setPaid(p.paid_year === thisYear) }}>
+                onClick={() => {
+                  setEditId(p.id); setName(p.name); setKind(p.kind); setPayMonth(p.pay_month); setPaid(paidThisYear)
+                  const cur = p.payments.find((x) => x.year === thisYear)
+                  setAnnualStr(String(cur ? cur.amount : p.annual))
+                }}>
                 {p.kind === 'savings' ? '🔒' : '🛡️'} {p.name}
-                <span className="meta"> {p.pay_month}月 · {p.paid_year === thisYear ? '今年已缴' : '未缴'}</span>
+                <span className="meta"> {p.pay_month}月 · {paidThisYear ? '今年已缴' : '未缴'}</span>
+                {years.length > 0 && (
+                  <span className="meta" style={{ display: 'block', color: 'var(--ink-3)' }}>已缴 {years.join('、')}</span>
+                )}
               </button>
               <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span className="r">{fmtCny(p.annual)}</span>
                 <button className="link-btn danger-txt" onClick={() => { deleteInsurance(p.id); showToast('已删除') }}>删</button>
               </span>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
       <div style={{ fontSize: 12, color: 'var(--ink-3)', margin: '0 2px' }}>

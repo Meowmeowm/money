@@ -16,8 +16,10 @@ function monthDiff(from: string, to: string): number {
 export function insuranceRealInMonth(data: AppData, mk: string): number {
   let sum = 0
   for (const p of data.insurances) {
-    if (p.kind !== 'protect' || p.paid_year == null) continue
-    if (`${p.paid_year}-${String(p.pay_month).padStart(2, '0')}` === mk) sum += p.annual
+    if (p.kind !== 'protect') continue
+    for (const pay of p.payments) {
+      if (`${pay.year}-${String(p.pay_month).padStart(2, '0')}` === mk) sum += pay.amount
+    }
   }
   return round2(sum)
 }
@@ -26,10 +28,12 @@ export function insuranceRealInMonth(data: AppData, mk: string): number {
 export function insuranceAmortInMonth(data: AppData, mk: string): number {
   let sum = 0
   for (const p of data.insurances) {
-    if (p.kind !== 'protect' || p.paid_year == null) continue
-    const start = `${p.paid_year}-${String(p.pay_month).padStart(2, '0')}`
-    const d = monthDiff(start, mk)
-    if (d >= 0 && d < 12) sum += p.annual / 12
+    if (p.kind !== 'protect') continue
+    for (const pay of p.payments) {
+      const start = `${pay.year}-${String(p.pay_month).padStart(2, '0')}`
+      const d = monthDiff(start, mk)
+      if (d >= 0 && d < 12) sum += pay.amount / 12
+    }
   }
   return round2(sum)
 }
@@ -111,21 +115,23 @@ export function categoryBreakdown(data: AppData, mk: string, includeCards: boole
   }
   // 消费型保险并入「医疗 / 保险」（真实花销记缴费月全额；消费水平按月摊）
   for (const p of data.insurances) {
-    if (p.kind !== 'protect' || p.paid_year == null) continue
-    const start = `${p.paid_year}-${String(p.pay_month).padStart(2, '0')}`
-    let amt = 0
-    if (includeCards) { if (start === mk) amt = p.annual }
-    else { const d = monthDiff(start, mk); if (d >= 0 && d < 12) amt = p.annual / 12 }
-    if (amt <= 0) continue
-    if (parentKey) {
-      if (parentKey !== 'medical') continue
-      const e = map.get('medical_insurance') ?? { amount: 0, count: 0 }
-      e.amount += amt; e.count += 1; map.set('medical_insurance', e)
-    } else {
-      const e = map.get('medical') ?? { amount: 0, count: 0 }
-      e.amount += amt; e.count += 1; map.set('medical', e)
+    if (p.kind !== 'protect') continue
+    for (const pay of p.payments) {
+      const start = `${pay.year}-${String(p.pay_month).padStart(2, '0')}`
+      let amt = 0
+      if (includeCards) { if (start === mk) amt = pay.amount }
+      else { const d = monthDiff(start, mk); if (d >= 0 && d < 12) amt = pay.amount / 12 }
+      if (amt <= 0) continue
+      if (parentKey) {
+        if (parentKey !== 'medical') continue
+        const e = map.get('medical_insurance') ?? { amount: 0, count: 0 }
+        e.amount += amt; e.count += 1; map.set('medical_insurance', e)
+      } else {
+        const e = map.get('medical') ?? { amount: 0, count: 0 }
+        e.amount += amt; e.count += 1; map.set('medical', e)
+      }
+      total += amt
     }
-    total += amt
   }
   return [...map.entries()]
     .map(([key, v]) => ({ key, amount: round2(v.amount), count: v.count, pct: total > 0 ? v.amount / total : 0 }))
@@ -242,7 +248,8 @@ export function outstandingLoans(sv: Savings | null): SavingsMove[] {
 export function lockedSavingsThisYear(data: AppData, year: number): number {
   let sum = 0
   for (const p of data.insurances) {
-    if (p.kind === 'savings' && p.paid_year === year) sum += p.annual
+    if (p.kind !== 'savings') continue
+    for (const pay of p.payments) if (pay.year === year) sum += pay.amount
   }
   return round2(sum)
 }
@@ -251,7 +258,8 @@ export function lockedSavingsThisYear(data: AppData, year: number): number {
 export function protectPremiumThisYear(data: AppData, year: number): number {
   let sum = 0
   for (const p of data.insurances) {
-    if (p.kind === 'protect' && p.paid_year === year) sum += p.annual
+    if (p.kind !== 'protect') continue
+    for (const pay of p.payments) if (pay.year === year) sum += pay.amount
   }
   return round2(sum)
 }
@@ -261,7 +269,7 @@ export function insurancesDue(data: AppData, now = new Date()): Insurance[] {
   const y = now.getFullYear()
   const m = now.getMonth() + 1
   return data.insurances
-    .filter((p) => p.paid_year !== y && m >= p.pay_month - 1)
+    .filter((p) => !p.payments.some((pay) => pay.year === y) && m >= p.pay_month - 1)
     .sort((a, b) => a.pay_month - b.pay_month)
 }
 
