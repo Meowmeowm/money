@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react'
-import type { Card, Category, HousingFund } from '../types'
+import type { Card, Category, HousingFund, SavingsMoveType } from '../types'
 import {
   useStore, addCard, updateCard, deleteCard, useCard, deleteUsage, renewCard,
   updateSettings, setHousingFund, deleteTemplate, updateTrip, deleteTrip, setActiveTrip,
   upsertCategory, deleteCategory, signOut, showToast,
+  setSavingsOpening, addSavingsMove, updateSavingsMove, deleteSavingsMove, setLoanRepaid,
 } from '../store'
-import { cardWarnState, cardUnitPrice, seriesStats, usagesOfCard, housingFundStatus } from '../lib/derive'
+import {
+  cardWarnState, cardUnitPrice, seriesStats, usagesOfCard, housingFundStatus,
+  savingsBalance, savingsYear, outstandingLoans,
+} from '../lib/derive'
 import { exportCsv } from '../lib/csv'
 import { fmtCny, fmtMoney, round2, todayStr, uid, dayLabel } from '../lib/utils'
 import { Sheet, parseAmount } from '../components/ui'
@@ -19,11 +23,16 @@ export default function MinePage() {
   const [newCard, setNewCard] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
+  const [savingsOpen, setSavingsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState<null | 'budget' | 'fx' | 'cats' | 'trips' | 'ayi'>(null)
 
   const active = data.cards.filter((c) => c.status === 'active')
   const archived = data.cards.filter((c) => c.status === 'archived')
   const fund = housingFundStatus(data)
+  const sv = data.savings
+  const svBalance = savingsBalance(sv)
+  const svYear = savingsYear(data, new Date().getFullYear())
+  const loans = outstandingLoans(sv)
 
   return (
     <div className="page">
@@ -46,6 +55,24 @@ export default function MinePage() {
           {showArchived && archived.map((c) => <CardRow key={c.id} card={c} onTap={() => setCardOpen(c.id)} archived />)}
         </>
       )}
+
+      <div className="section-h"><span>🐷 存钱卡</span></div>
+      <button className="card" style={{ width: '100%', textAlign: 'left', display: 'block' }} onClick={() => setSavingsOpen(true)}>
+        {!sv && <span style={{ color: 'var(--ink-3)', fontSize: 14 }}>记一下存款余额，存钱、取钱、借出都在这里 →</span>}
+        {sv && (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>当前余额</span>
+              <span className="num" style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>{fmtCny(svBalance)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 12.5, color: 'var(--ink-2)' }}>
+              <span>今年存 <b className="num" style={{ color: 'var(--income)' }}>{fmtMoney(svYear.net)}</b></span>
+              <span>今年赚 <b className="num">{fmtMoney(svYear.income)}</b></span>
+              {loans.length > 0 && <span style={{ color: 'var(--warn)' }}>待收 {loans.length} 笔</span>}
+            </div>
+          </>
+        )}
+      </button>
 
       <div className="section-h"><span>🏦 公积金监控</span></div>
       <button className="card" style={{ width: '100%', textAlign: 'left', display: 'block' }} onClick={() => setFundOpen(true)}>
@@ -131,6 +158,7 @@ export default function MinePage() {
       {cardOpen && <CardDetailSheet cardId={cardOpen} onClose={() => setCardOpen(null)} />}
       {newCard && <NewCardSheet onClose={() => setNewCard(false)} />}
       {fundOpen && <FundSheet onClose={() => setFundOpen(false)} />}
+      {savingsOpen && <SavingsSheet onClose={() => setSavingsOpen(false)} />}
       {settingsOpen === 'budget' && <BudgetSheet onClose={() => setSettingsOpen(null)} />}
       {settingsOpen === 'fx' && <FxSheet onClose={() => setSettingsOpen(null)} />}
       {settingsOpen === 'cats' && <CatsSheet onClose={() => setSettingsOpen(null)} />}
@@ -460,6 +488,160 @@ function FundSheet(props: { onClose: () => void }) {
           清除监控数据
         </button>
       )}
+    </Sheet>
+  )
+}
+
+const MOVE_META: Record<SavingsMoveType, { label: string; verb: string }> = {
+  in: { label: '存入', verb: '存入' },
+  out: { label: '取出', verb: '取出' },
+  loan: { label: '借出', verb: '借给' },
+}
+
+function SavingsSheet(props: { onClose: () => void }) {
+  const { data } = useStore()
+  const sv = data.savings
+  const bal = savingsBalance(sv)
+  const year = savingsYear(data, new Date().getFullYear())
+  const loans = outstandingLoans(sv)
+
+  const [openStr, setOpenStr] = useState('')
+  const [type, setType] = useState<SavingsMoveType>('in')
+  const [amtStr, setAmtStr] = useState('')
+  const [date, setDate] = useState(todayStr())
+  const [note, setNote] = useState('')
+  const [borrower, setBorrower] = useState('')
+  const [editId, setEditId] = useState<string | null>(null)
+
+  // 未建账：先录起始余额
+  if (!sv) {
+    const n = parseAmount(openStr)
+    return (
+      <Sheet title="🐷 存钱卡 · 建账" onClose={props.onClose}>
+        <div className="field">
+          <label>存钱卡现在有多少（起始余额）</label>
+          <input className="num" type="text" inputMode="decimal" placeholder="如 40000" value={openStr} onChange={(e) => setOpenStr(e.target.value)} autoFocus />
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 12 }}>
+          之后每次存钱、取钱、借给朋友都在这里记一笔，余额自动跟着变。
+        </div>
+        <button className="btn" disabled={!Number.isFinite(n) || n < 0} onClick={() => { setSavingsOpening(n); showToast('存钱卡已建账') }}>
+          建账
+        </button>
+      </Sheet>
+    )
+  }
+
+  const amt = parseAmount(amtStr)
+  const canSubmit = Number.isFinite(amt) && amt > 0
+  const resetForm = () => { setEditId(null); setType('in'); setAmtStr(''); setDate(todayStr()); setNote(''); setBorrower('') }
+  const submit = () => {
+    if (!canSubmit) return
+    if (editId) {
+      updateSavingsMove(editId, {
+        type, amount: amt, date, note,
+        borrower: type === 'loan' ? borrower.trim() || null : null,
+      })
+      showToast('已修改')
+    } else {
+      addSavingsMove({ type, amount: amt, date, note, borrower })
+      showToast(`已记：${MOVE_META[type].verb} ${fmtCny(amt)}`)
+    }
+    resetForm()
+  }
+  const startEdit = (m: typeof sv.moves[number]) => {
+    setEditId(m.id); setType(m.type); setAmtStr(String(m.amount)); setDate(m.date); setNote(m.note); setBorrower(m.borrower ?? '')
+  }
+
+  return (
+    <Sheet title="🐷 存钱卡" onClose={props.onClose}>
+      <div className="card" style={{ textAlign: 'center' }}>
+        <div className="num" style={{ fontSize: 30, fontWeight: 800, color: 'var(--primary)' }}>{fmtCny(bal)}</div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 6, display: 'flex', justifyContent: 'center', gap: 14 }}>
+          <span>今年存入 {fmtMoney(year.deposit)}</span>
+          <span>取出 {fmtMoney(year.withdraw)}</span>
+          <span>净存 <b style={{ color: year.net >= 0 ? 'var(--income)' : 'var(--expense)' }}>{fmtMoney(year.net)}</b></span>
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink-2)', marginTop: 4 }}>今年赚了 {fmtCny(year.income)}</div>
+      </div>
+
+      <div className="card">
+        <div className="seg" style={{ display: 'flex', marginBottom: 10 }}>
+          {(['in', 'out', 'loan'] as SavingsMoveType[]).map((t) => (
+            <button key={t} className={type === t ? 'on' : ''} style={{ flex: 1 }} onClick={() => setType(t)}>{MOVE_META[t].label}</button>
+          ))}
+        </div>
+        <div className="field-row">
+          <div className="field grow" style={{ marginBottom: 0 }}>
+            <label>金额</label>
+            <input className="num" type="text" inputMode="decimal" value={amtStr} onChange={(e) => setAmtStr(e.target.value)} />
+          </div>
+          <div className="field grow" style={{ marginBottom: 0 }}>
+            <label>日期</label>
+            <input type="date" value={date} max={todayStr()} onChange={(e) => e.target.value && setDate(e.target.value)} />
+          </div>
+        </div>
+        {type === 'loan' && (
+          <div className="field" style={{ marginTop: 10, marginBottom: 0 }}>
+            <label>借给谁</label>
+            <input type="text" maxLength={12} placeholder="如 小美" value={borrower} onChange={(e) => setBorrower(e.target.value)} />
+          </div>
+        )}
+        <div className="field" style={{ marginTop: 10, marginBottom: 10 }}>
+          <label>备注（选填）</label>
+          <input type="text" maxLength={20} value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+        <div className="btn-row">
+          {editId && <button className="btn ghost" onClick={resetForm}>取消</button>}
+          <button className="btn" disabled={!canSubmit} onClick={submit} style={{ flex: 1 }}>
+            {editId ? '保存修改' : `记一笔${MOVE_META[type].label}`}
+          </button>
+        </div>
+      </div>
+
+      {loans.length > 0 && (
+        <div className="card">
+          <div className="card-title"><span>待收借款（{loans.length}）</span></div>
+          {loans.map((m) => (
+            <div className="consume-row" key={m.id}>
+              <span>
+                {m.borrower || '某人'}
+                <span className="meta"> {dayLabel(m.date)}{m.note ? ` · ${m.note}` : ''}</span>
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="r">{fmtCny(m.amount)}</span>
+                <button className="link-btn" onClick={() => { setLoanRepaid(m.id, true); showToast('已收回，加回存钱卡') }}>已收回</button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-title">
+          <span>流水（{sv.moves.length}）</span>
+          <button className="link-btn" onClick={() => { const s = prompt('校准起始余额', String(sv.opening)); if (s != null) { const v = parseAmount(s); if (Number.isFinite(v)) setSavingsOpening(v) } }}>校准余额</button>
+        </div>
+        {sv.moves.length === 0 && <div className="empty">还没有记录</div>}
+        {sv.moves.map((m) => (
+          <div className="consume-row" key={m.id}>
+            <button className="link-btn" style={{ textAlign: 'left', padding: 0, color: 'var(--ink)' }} onClick={() => startEdit(m)}>
+              {MOVE_META[m.type].label}{m.type === 'loan' && m.borrower ? ` · ${m.borrower}` : ''}
+              {m.type === 'loan' && m.repaid ? ' ✓已收回' : ''}
+              <span className="meta"> {dayLabel(m.date)}{m.note ? ` · ${m.note}` : ''}</span>
+            </button>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="r" style={{ color: m.type === 'in' ? 'var(--income)' : 'var(--ink)' }}>
+                {m.type === 'in' ? '+' : '−'}{fmtMoney(m.amount)}
+              </span>
+              {m.type === 'loan' && m.repaid && (
+                <button className="link-btn" onClick={() => { setLoanRepaid(m.id, false); showToast('已改回待收') }}>撤销</button>
+              )}
+              <button className="link-btn danger-txt" onClick={() => { deleteSavingsMove(m.id); showToast('已删除') }}>删</button>
+            </span>
+          </div>
+        ))}
+      </div>
     </Sheet>
   )
 }

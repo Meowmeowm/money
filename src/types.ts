@@ -97,6 +97,26 @@ export interface Category {
   updated_at: string
 }
 
+export type SavingsMoveType = 'in' | 'out' | 'loan'
+
+export interface SavingsMove {
+  id: string
+  date: string // YYYY-MM-DD
+  type: SavingsMoveType // in=存入 out=取出（消费/挪钱） loan=借出
+  amount: number
+  note: string
+  borrower: string | null // loan 专用：借给谁
+  repaid: boolean // loan 专用：是否已收回
+  repaid_date: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Savings {
+  opening: number // 建账起始余额
+  moves: SavingsMove[]
+}
+
 export interface HousingFund {
   balance: number
   monthly_deposit: number
@@ -125,6 +145,7 @@ export interface AppData {
   templates: Template[]
   categories: Category[]
   housing_fund: HousingFund | null
+  savings: Savings | null
   settings: Settings
 }
 

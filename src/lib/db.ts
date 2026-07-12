@@ -30,6 +30,7 @@ export function defaultData(): AppData {
     templates: [],
     categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })),
     housing_fund: null,
+    savings: null,
     settings: defaultSettings(),
   }
 }
@@ -178,6 +179,7 @@ export async function pullAll(): Promise<AppData | null> {
       templates: strip((templates.data ?? []) as never[]),
       categories: remoteCats.length > 0 ? remoteCats : base.categories,
       housing_fund: (kvMap['housing_fund'] as AppData['housing_fund']) ?? null,
+      savings: (kvMap['savings'] as AppData['savings']) ?? null,
       settings: { ...base.settings, ...((kvMap['settings'] as Partial<Settings>) ?? {}) },
     }
   } catch {
@@ -201,6 +203,7 @@ export async function pushAllIfCloudEmpty(data: AppData): Promise<void> {
     for (const c of data.categories) enqueue('categories', 'upsert', c.key, c as never)
     enqueue('kv', 'upsert', 'settings', { key: 'settings', value: data.settings })
     if (data.housing_fund) enqueue('kv', 'upsert', 'housing_fund', { key: 'housing_fund', value: data.housing_fund })
+    if (data.savings) enqueue('kv', 'upsert', 'savings', { key: 'savings', value: data.savings })
     await flushQueue()
   } catch {
     /* 下次再同步 */

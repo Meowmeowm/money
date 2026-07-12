@@ -1,4 +1,4 @@
-import type { AppData, Card, CardUsage, Transaction } from '../types'
+import type { AppData, Card, CardUsage, Savings, SavingsMove, Transaction } from '../types'
 import { CAT_CARDS } from '../data/categories'
 import { monthKey, round2 } from './utils'
 
@@ -141,6 +141,51 @@ export function tripSummaries(data: AppData): TripSummary[] {
     })
   }
   return res.sort((a, b) => b.total - a.total)
+}
+
+// ---------------- 存钱卡 ----------------
+
+/** 当前余额 = 起始 + 存入 − 取出 − 未收回的借出（已收回的借出进出相抵为 0） */
+export function savingsBalance(sv: Savings | null): number {
+  if (!sv) return 0
+  let bal = sv.opening
+  for (const m of sv.moves) {
+    if (m.type === 'in') bal += m.amount
+    else if (m.type === 'out') bal -= m.amount
+    else if (m.type === 'loan' && !m.repaid) bal -= m.amount
+  }
+  return round2(bal)
+}
+
+export interface SavingsYear {
+  deposit: number // 今年存入
+  withdraw: number // 今年取出（消费/挪钱）
+  net: number // 今年净存 = 存入 − 取出
+  income: number // 今年赚（记账里的收入）
+}
+
+/** 年度赚/存看板（year 传四位年份数字） */
+export function savingsYear(data: AppData, year: number): SavingsYear {
+  const y = String(year)
+  let deposit = 0
+  let withdraw = 0
+  for (const m of data.savings?.moves ?? []) {
+    if (m.date.slice(0, 4) !== y) continue
+    if (m.type === 'in') deposit += m.amount
+    else if (m.type === 'out') withdraw += m.amount
+  }
+  let income = 0
+  for (const t of data.transactions) {
+    if (t.type === 'income' && t.date.slice(0, 4) === y) income += t.amount_cny
+  }
+  return { deposit: round2(deposit), withdraw: round2(withdraw), net: round2(deposit - withdraw), income: round2(income) }
+}
+
+/** 未收回的借出（按日期新→旧） */
+export function outstandingLoans(sv: Savings | null): SavingsMove[] {
+  return (sv?.moves ?? [])
+    .filter((m) => m.type === 'loan' && !m.repaid)
+    .sort((a, b) => b.date.localeCompare(a.date))
 }
 
 export interface FundStatus {

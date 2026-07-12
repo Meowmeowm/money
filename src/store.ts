@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type {
-  AppData, Card, CardUsage, Category, HousingFund, Settings, Template, TemplateConfig,
-  Transaction, Trip, TxType,
+  AppData, Card, CardUsage, Category, HousingFund, Savings, SavingsMove, SavingsMoveType,
+  Settings, Template, TemplateConfig, Transaction, Trip, TxType,
 } from './types'
 import { defaultData, enqueue, flushQueue, loadLocal, pullAll, pushAllIfCloudEmpty, queueLength, saveLocal } from './lib/db'
 import { supabase, isCloudConfigured } from './lib/supabase'
@@ -437,6 +437,83 @@ export function setHousingFund(hf: HousingFund | null) {
   if (hf) enqueue('kv', 'upsert', 'housing_fund', { key: 'housing_fund', value: hf })
   else enqueue('kv', 'delete', 'housing_fund')
   scheduleFlush()
+}
+
+// ---------------- 存钱卡 ----------------
+
+function persistSavings(sv: Savings | null) {
+  if (sv) enqueue('kv', 'upsert', 'savings', { key: 'savings', value: sv })
+  else enqueue('kv', 'delete', 'savings')
+  scheduleFlush()
+}
+
+/** 建账 / 校准起始余额 */
+export function setSavingsOpening(opening: number) {
+  let next: Savings
+  setData((d) => {
+    next = { opening: round2(opening), moves: d.savings?.moves ?? [] }
+    return { ...d, savings: next }
+  })
+  persistSavings(next!)
+}
+
+export interface NewMoveInput {
+  type: SavingsMoveType
+  amount: number
+  date?: string
+  note?: string
+  borrower?: string
+}
+
+export function addSavingsMove(input: NewMoveInput): SavingsMove {
+  const m: SavingsMove = {
+    id: uid(),
+    date: input.date ?? todayStr(),
+    type: input.type,
+    amount: round2(input.amount),
+    note: input.note ?? '',
+    borrower: input.type === 'loan' ? (input.borrower ?? '').trim() || null : null,
+    repaid: false,
+    repaid_date: null,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  }
+  let next: Savings
+  setData((d) => {
+    const base: Savings = d.savings ?? { opening: 0, moves: [] }
+    next = { ...base, moves: [m, ...base.moves] }
+    return { ...d, savings: next }
+  })
+  persistSavings(next!)
+  return m
+}
+
+export function updateSavingsMove(id: string, patch: Partial<SavingsMove>) {
+  let next: Savings | null = null
+  setData((d) => {
+    if (!d.savings) return d
+    next = {
+      ...d.savings,
+      moves: d.savings.moves.map((m) => (m.id === id ? { ...m, ...patch, updated_at: nowIso() } : m)),
+    }
+    return { ...d, savings: next }
+  })
+  if (next) persistSavings(next)
+}
+
+export function deleteSavingsMove(id: string) {
+  let next: Savings | null = null
+  setData((d) => {
+    if (!d.savings) return d
+    next = { ...d.savings, moves: d.savings.moves.filter((m) => m.id !== id) }
+    return { ...d, savings: next }
+  })
+  if (next) persistSavings(next)
+}
+
+/** 借款收回 / 撤销收回：不改余额逻辑，仅切标记（未收回的借出才占用余额） */
+export function setLoanRepaid(id: string, repaid: boolean) {
+  updateSavingsMove(id, { repaid, repaid_date: repaid ? todayStr() : null })
 }
 
 export function upsertCategory(cat: Category) {
