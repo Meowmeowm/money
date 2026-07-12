@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
-import type { Card, Category, HousingFund, SavingsMoveType } from '../types'
+import type { Card, Category, HousingFund, InsuranceKind, SavingsMoveType } from '../types'
 import {
   useStore, addCard, updateCard, deleteCard, useCard, deleteUsage, renewCard,
   updateSettings, setHousingFund, deleteTemplate, updateTrip, deleteTrip, setActiveTrip,
   upsertCategory, deleteCategory, signOut, showToast,
   setSavingsOpening, addSavingsMove, updateSavingsMove, deleteSavingsMove, setLoanRepaid,
+  addInsurance, updateInsurance, deleteInsurance,
 } from '../store'
 import {
   cardWarnState, cardUnitPrice, seriesStats, usagesOfCard, housingFundStatus,
-  savingsBalance, savingsYear, outstandingLoans,
+  savingsBalance, savingsYear, outstandingLoans, lockedSavingsThisYear, insurancesDue,
 } from '../lib/derive'
 import { exportCsv } from '../lib/csv'
 import { fmtCny, fmtMoney, round2, todayStr, uid, dayLabel } from '../lib/utils'
@@ -24,15 +25,19 @@ export default function MinePage() {
   const [showArchived, setShowArchived] = useState(false)
   const [fundOpen, setFundOpen] = useState(false)
   const [savingsOpen, setSavingsOpen] = useState(false)
+  const [insOpen, setInsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState<null | 'budget' | 'fx' | 'cats' | 'trips' | 'ayi'>(null)
 
   const active = data.cards.filter((c) => c.status === 'active')
   const archived = data.cards.filter((c) => c.status === 'archived')
   const fund = housingFundStatus(data)
+  const thisYear = new Date().getFullYear()
   const sv = data.savings
   const svBalance = savingsBalance(sv)
-  const svYear = savingsYear(data, new Date().getFullYear())
+  const svYear = savingsYear(data, thisYear)
+  const locked = lockedSavingsThisYear(data, thisYear)
   const loans = outstandingLoans(sv)
+  const insDue = insurancesDue(data)
 
   return (
     <div className="page">
@@ -66,12 +71,28 @@ export default function MinePage() {
               <span className="num" style={{ fontSize: 22, fontWeight: 800, color: 'var(--primary)' }}>{fmtCny(svBalance)}</span>
             </div>
             <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 12.5, color: 'var(--ink-2)' }}>
-              <span>今年存 <b className="num" style={{ color: 'var(--income)' }}>{fmtMoney(svYear.net)}</b></span>
+              <span>今年存 <b className="num" style={{ color: 'var(--income)' }}>{fmtMoney(svYear.net + locked)}</b>{locked > 0 ? '（含养老）' : ''}</span>
               <span>今年赚 <b className="num">{fmtMoney(svYear.income)}</b></span>
               {loans.length > 0 && <span style={{ color: 'var(--warn)' }}>待收 {loans.length} 笔</span>}
             </div>
           </>
         )}
+      </button>
+
+      <div className="section-h"><span>🛡️ 保险</span></div>
+      {insDue.length > 0 && (
+        <div className="banner warn" style={{ marginBottom: 8 }}>
+          🛡️ {insDue.map((p) => `${p.name}（${p.pay_month}月缴 ${fmtCny(p.annual)}）`).join('、')} 该缴了，记得留钱
+        </div>
+      )}
+      <button className="card" style={{ width: '100%', textAlign: 'left', display: 'block' }} onClick={() => setInsOpen(true)}>
+        {data.insurances.length === 0 && <span style={{ color: 'var(--ink-3)', fontSize: 14 }}>记下每年的保险：消费型算花销、储蓄型（养老）算存款 →</span>}
+        {data.insurances.map((p) => (
+          <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '3px 0' }}>
+            <span>{p.kind === 'savings' ? '🔒' : '🛡️'} {p.name}<span className="meta"> {p.pay_month}月 · {p.kind === 'savings' ? '储蓄' : '消费型'}</span></span>
+            <span className="num" style={{ color: 'var(--ink-2)' }}>{fmtCny(p.annual)}/年</span>
+          </div>
+        ))}
       </button>
 
       <div className="section-h"><span>🏦 公积金监控</span></div>
@@ -159,6 +180,7 @@ export default function MinePage() {
       {newCard && <NewCardSheet onClose={() => setNewCard(false)} />}
       {fundOpen && <FundSheet onClose={() => setFundOpen(false)} />}
       {savingsOpen && <SavingsSheet onClose={() => setSavingsOpen(false)} />}
+      {insOpen && <InsuranceSheet onClose={() => setInsOpen(false)} />}
       {settingsOpen === 'budget' && <BudgetSheet onClose={() => setSettingsOpen(null)} />}
       {settingsOpen === 'fx' && <FxSheet onClose={() => setSettingsOpen(null)} />}
       {settingsOpen === 'cats' && <CatsSheet onClose={() => setSettingsOpen(null)} />}
@@ -641,6 +663,88 @@ function SavingsSheet(props: { onClose: () => void }) {
             </span>
           </div>
         ))}
+      </div>
+    </Sheet>
+  )
+}
+
+function InsuranceSheet(props: { onClose: () => void }) {
+  const { data } = useStore()
+  const thisYear = new Date().getFullYear()
+  const [name, setName] = useState('')
+  const [kind, setKind] = useState<InsuranceKind>('protect')
+  const [annualStr, setAnnualStr] = useState('')
+  const [payMonth, setPayMonth] = useState(7)
+  const [paid, setPaid] = useState(true)
+  const [editId, setEditId] = useState<string | null>(null)
+
+  const annual = parseAmount(annualStr)
+  const valid = name.trim() && Number.isFinite(annual) && annual > 0
+  const reset = () => { setEditId(null); setName(''); setKind('protect'); setAnnualStr(''); setPayMonth(7); setPaid(true) }
+  const submit = () => {
+    if (!valid) return
+    const payload = { name: name.trim(), kind, annual, payMonth, paidYear: paid ? thisYear : null }
+    if (editId) { updateInsurance(editId, { ...payload, pay_month: payMonth, paid_year: paid ? thisYear : null }); showToast('已修改') }
+    else { addInsurance(payload); showToast('已添加') }
+    reset()
+  }
+
+  return (
+    <Sheet title="🛡️ 保险" onClose={props.onClose}>
+      <div className="card">
+        <div className="field">
+          <label>名称</label>
+          <input type="text" maxLength={12} placeholder="如 重疾 / 医疗 / 养老" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>类型</label>
+          <div className="seg" style={{ display: 'flex' }}>
+            <button className={kind === 'protect' ? 'on' : ''} style={{ flex: 1 }} onClick={() => setKind('protect')}>消费型（算花销）</button>
+            <button className={kind === 'savings' ? 'on' : ''} style={{ flex: 1 }} onClick={() => setKind('savings')}>储蓄型（算存款）</button>
+          </div>
+        </div>
+        <div className="field-row">
+          <div className="field grow" style={{ marginBottom: 0 }}>
+            <label>年缴保费</label>
+            <input className="num" type="text" inputMode="decimal" value={annualStr} onChange={(e) => setAnnualStr(e.target.value)} />
+          </div>
+          <div className="field grow" style={{ marginBottom: 0 }}>
+            <label>缴费月</label>
+            <select value={payMonth} onChange={(e) => setPayMonth(Number(e.target.value))}>
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{m} 月</option>)}
+            </select>
+          </div>
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, margin: '10px 2px 0' }}>
+          <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} style={{ width: 18, height: 18 }} />
+          {thisYear} 年已缴
+        </label>
+        <div className="btn-row" style={{ marginTop: 12 }}>
+          {editId && <button className="btn ghost" onClick={reset}>取消</button>}
+          <button className="btn" disabled={!valid} onClick={submit} style={{ flex: 1 }}>{editId ? '保存修改' : '添加保险'}</button>
+        </div>
+      </div>
+
+      {data.insurances.length > 0 && (
+        <div className="card">
+          <div className="card-title"><span>我的保险（{data.insurances.length}）</span></div>
+          {data.insurances.map((p) => (
+            <div className="consume-row" key={p.id}>
+              <button className="link-btn" style={{ textAlign: 'left', padding: 0, color: 'var(--ink)' }}
+                onClick={() => { setEditId(p.id); setName(p.name); setKind(p.kind); setAnnualStr(String(p.annual)); setPayMonth(p.pay_month); setPaid(p.paid_year === thisYear) }}>
+                {p.kind === 'savings' ? '🔒' : '🛡️'} {p.name}
+                <span className="meta"> {p.pay_month}月 · {p.paid_year === thisYear ? '今年已缴' : '未缴'}</span>
+              </button>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span className="r">{fmtCny(p.annual)}</span>
+                <button className="link-btn danger-txt" onClick={() => { deleteInsurance(p.id); showToast('已删除') }}>删</button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 12, color: 'var(--ink-3)', margin: '0 2px' }}>
+        储蓄型（如养老）计进「今年存的钱」，不算花销；消费型是真实花销。缴费月前一个月起会在上方提醒你留钱。
       </div>
     </Sheet>
   )

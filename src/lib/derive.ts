@@ -1,4 +1,4 @@
-import type { AppData, Card, CardUsage, Savings, SavingsMove, Transaction } from '../types'
+import type { AppData, Card, CardUsage, Insurance, Savings, SavingsMove, Transaction } from '../types'
 import { CAT_CARDS } from '../data/categories'
 import { monthKey, round2 } from './utils'
 
@@ -186,6 +186,35 @@ export function outstandingLoans(sv: Savings | null): SavingsMove[] {
   return (sv?.moves ?? [])
     .filter((m) => m.type === 'loan' && !m.repaid)
     .sort((a, b) => b.date.localeCompare(a.date))
+}
+
+// ---------------- 保险 ----------------
+
+/** 今年投入的储蓄型保费（养老等）：算作“锁定的存款”，计进今年总储蓄 */
+export function lockedSavingsThisYear(data: AppData, year: number): number {
+  let sum = 0
+  for (const p of data.insurances) {
+    if (p.kind === 'savings' && p.paid_year === year) sum += p.annual
+  }
+  return round2(sum)
+}
+
+/** 今年消费型保费总额（重疾/医疗等，属真实花销） */
+export function protectPremiumThisYear(data: AppData, year: number): number {
+  let sum = 0
+  for (const p of data.insurances) {
+    if (p.kind === 'protect' && p.paid_year === year) sum += p.annual
+  }
+  return round2(sum)
+}
+
+/** 待缴保险：今年还没缴、且已进入缴费月的前一个月起提醒（有 3 个月宽限，缴费月后也持续提示） */
+export function insurancesDue(data: AppData, now = new Date()): Insurance[] {
+  const y = now.getFullYear()
+  const m = now.getMonth() + 1
+  return data.insurances
+    .filter((p) => p.paid_year !== y && m >= p.pay_month - 1)
+    .sort((a, b) => a.pay_month - b.pay_month)
 }
 
 export interface FundStatus {

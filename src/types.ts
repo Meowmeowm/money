@@ -117,6 +117,20 @@ export interface Savings {
   moves: SavingsMove[]
 }
 
+export type InsuranceKind = 'protect' | 'savings' // 消费型保障 / 储蓄型
+
+export interface Insurance {
+  id: string
+  name: string
+  kind: InsuranceKind
+  annual: number // 年缴保费
+  pay_month: number // 缴费月 1-12
+  paid_year: number | null // 最近已缴年份（判断今年是否已缴 + 提醒）
+  note: string
+  created_at: string
+  updated_at: string
+}
+
 export interface HousingFund {
   balance: number
   monthly_deposit: number
@@ -146,6 +160,7 @@ export interface AppData {
   categories: Category[]
   housing_fund: HousingFund | null
   savings: Savings | null
+  insurances: Insurance[]
   settings: Settings
 }
 

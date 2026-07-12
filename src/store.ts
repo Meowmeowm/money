@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import type {
-  AppData, Card, CardUsage, Category, HousingFund, Savings, SavingsMove, SavingsMoveType,
+  AppData, Card, CardUsage, Category, HousingFund, Insurance, InsuranceKind,
+  Savings, SavingsMove, SavingsMoveType,
   Settings, Template, TemplateConfig, Transaction, Trip, TxType,
 } from './types'
 import { defaultData, enqueue, flushQueue, loadLocal, pullAll, pushAllIfCloudEmpty, queueLength, saveLocal } from './lib/db'
@@ -514,6 +515,54 @@ export function deleteSavingsMove(id: string) {
 /** 借款收回 / 撤销收回：不改余额逻辑，仅切标记（未收回的借出才占用余额） */
 export function setLoanRepaid(id: string, repaid: boolean) {
   updateSavingsMove(id, { repaid, repaid_date: repaid ? todayStr() : null })
+}
+
+// ---------------- 保险 ----------------
+
+function persistInsurances() {
+  const list = state.data.insurances
+  if (list.length > 0) enqueue('kv', 'upsert', 'insurances', { key: 'insurances', value: list })
+  else enqueue('kv', 'delete', 'insurances')
+  scheduleFlush()
+}
+
+export interface NewInsuranceInput {
+  name: string
+  kind: InsuranceKind
+  annual: number
+  payMonth: number
+  paidYear?: number | null
+  note?: string
+}
+
+export function addInsurance(input: NewInsuranceInput): Insurance {
+  const p: Insurance = {
+    id: uid(),
+    name: input.name.trim(),
+    kind: input.kind,
+    annual: round2(input.annual),
+    pay_month: input.payMonth,
+    paid_year: input.paidYear ?? null,
+    note: input.note ?? '',
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  }
+  setData((d) => ({ ...d, insurances: [...d.insurances, p] }))
+  persistInsurances()
+  return p
+}
+
+export function updateInsurance(id: string, patch: Partial<Insurance>) {
+  setData((d) => ({
+    ...d,
+    insurances: d.insurances.map((p) => (p.id === id ? { ...p, ...patch, updated_at: nowIso() } : p)),
+  }))
+  persistInsurances()
+}
+
+export function deleteInsurance(id: string) {
+  setData((d) => ({ ...d, insurances: d.insurances.filter((p) => p.id !== id) }))
+  persistInsurances()
 }
 
 export function upsertCategory(cat: Category) {
