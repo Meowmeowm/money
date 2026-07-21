@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Category, TxType } from '../types'
-import { useStore, addTransaction, showToast, addTrip, setActiveTrip, applyAyiTemplate, addCard, renewCard } from '../store'
+import type { Category, TxType, Trip } from '../types'
+import { useStore, addTransaction, showToast, addTrip, applyAyiTemplate, addCard, renewCard } from '../store'
+import { currentTrip } from '../lib/derive'
 import { catColor, catFg, majorCategories, subCategories, catLabel } from '../lib/catalog'
 import { CatGlyph } from '../components/icons'
 import { CURRENCIES, CURRENCY_SYMBOL } from '../lib/fx'
@@ -47,8 +48,9 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
   const effRate = currency === 'CNY' ? 1 : fxRate ?? s.fx_rates[currency] ?? 1
   const amountCny = hasAmount ? round2(amount * effRate) : 0
 
-  const activeTrip = s.active_trip_id ? data.trips.find((t) => t.id === s.active_trip_id) : null
-  const effTripId = tripOverride === 'off' ? null : tripOverride === 'default' ? (activeTrip?.id ?? null) : tripOverride
+  // 自动带标签的旅行：按记账日期落在某趟 [开始,结束] 区间内才生效
+  const autoTrip = currentTrip(data, date)
+  const effTripId = tripOverride === 'off' ? null : tripOverride === 'default' ? (autoTrip?.id ?? null) : tripOverride
   const effTrip = effTripId ? data.trips.find((t) => t.id === effTripId) : null
 
   // 快捷指令 URL 协议（由 App 解析后传入）
@@ -181,8 +183,8 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
           <button
             className={`chip ${effTrip ? 'on' : ''}`}
             onClick={() => {
-              if (activeTrip && tripOverride === 'default') setTripOverride('off')
-              else if (activeTrip && tripOverride === 'off') setTripOverride('default')
+              if (autoTrip && tripOverride === 'default') setTripOverride('off')
+              else if (autoTrip && tripOverride === 'off') setTripOverride('default')
               else if (tripOverride !== 'default' && tripOverride !== 'off') setTripOverride('default') // 手动点亮的再点一下熄灭
               else setTripSheet(true)
             }}
@@ -313,23 +315,18 @@ export default function EntryPage(props: { prefill: UrlPrefill | null }) {
 
       {tripSheet && (
         <TripSheet
-          trips={trips.map((t) => ({ id: t.id, name: t.name }))}
-          activeTripId={activeTrip?.id ?? null}
+          trips={trips}
+          currentTripId={autoTrip?.id ?? null}
+          today={date}
           onPick={(id) => {
             setTripOverride(id)
             setTripSheet(false)
           }}
-          onNew={(name, activate) => {
-            const t = addTrip(name, activate)
+          onNew={(name, start, end) => {
+            const t = addTrip(name, start, end)
             setTripOverride(t.id)
             setTripSheet(false)
-            showToast(activate ? `旅行模式已开启：${name}` : `已创建旅行：${name}`)
-          }}
-          onEndTravelMode={() => {
-            setActiveTrip(null)
-            setTripOverride('default')
-            setTripSheet(false)
-            showToast('旅行模式已结束')
+            showToast(`已创建旅行：${name}`)
           }}
           onClose={() => setTripSheet(false)}
         />
@@ -410,29 +407,31 @@ function CurrencySheet(props: {
   )
 }
 
+function tripDateLabel(t: Trip): string {
+  if (t.start_date && t.end_date) return `${t.start_date} ~ ${t.end_date}`
+  return '未设日期'
+}
+
 function TripSheet(props: {
-  trips: { id: string; name: string }[]
-  activeTripId: string | null
+  trips: Trip[]
+  currentTripId: string | null
+  today: string
   onPick: (id: string) => void
-  onNew: (name: string, activate: boolean) => void
-  onEndTravelMode: () => void
+  onNew: (name: string, start: string, end: string) => void
   onClose: () => void
 }) {
   const [name, setName] = useState('')
-  const [activate, setActivate] = useState(true)
+  const [start, setStart] = useState(props.today)
+  const [end, setEnd] = useState(props.today)
+  const valid = name.trim() && start && end && start <= end
   return (
     <Sheet title="旅行标签" onClose={props.onClose}>
-      {props.activeTripId && (
-        <button className="btn danger-ghost" style={{ marginBottom: 12 }} onClick={props.onEndTravelMode}>
-          结束当前旅行模式
-        </button>
-      )}
       {props.trips.length > 0 && (
         <div className="opt-list">
           {props.trips.map((t) => (
             <button key={t.id} className="opt" onClick={() => props.onPick(t.id)}>
-              <span>✈️ {t.name}</span>
-              {t.id === props.activeTripId && <span className="sub">进行中</span>}
+              <span>✈️ {t.name} <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{tripDateLabel(t)}</span></span>
+              {t.id === props.currentTripId && <span className="sub">进行中</span>}
             </button>
           ))}
         </div>
@@ -441,11 +440,20 @@ function TripSheet(props: {
         <label>新建旅行（如「6月杭州」）</label>
         <input type="text" value={name} maxLength={12} placeholder="旅行名称" onChange={(e) => setName(e.target.value)} />
       </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, margin: '0 2px 12px' }}>
-        <input type="checkbox" checked={activate} onChange={(e) => setActivate(e.target.checked)} style={{ width: 18, height: 18 }} />
-        开启旅行模式（之后每笔默认带此标签）
-      </label>
-      <button className="btn" disabled={!name.trim()} onClick={() => props.onNew(name.trim(), activate)}>
+      <div className="field-row">
+        <div className="field grow" style={{ marginBottom: 0 }}>
+          <label>开始日期</label>
+          <input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+        </div>
+        <div className="field grow" style={{ marginBottom: 0 }}>
+          <label>结束日期</label>
+          <input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+        </div>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--ink-3)', margin: '8px 2px 12px' }}>
+        只有记账日期落在这段区间内，才会自动带上这个旅行；过期后自动收工。随时可手动点 ✈️ 归账。
+      </div>
+      <button className="btn" disabled={!valid} onClick={() => props.onNew(name.trim(), start, end)}>
         创建
       </button>
     </Sheet>

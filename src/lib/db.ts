@@ -15,7 +15,6 @@ export function defaultSettings(): Settings {
     budget_by_category: {},
     ayi_fixed: 1780,
     fx_rates: { ...DEFAULT_FX_RATES },
-    active_trip_id: null,
     stats_include_cards: true,
     updated_at: nowIso(),
   }
@@ -49,6 +48,21 @@ export function normalizeInsurances(list: unknown): AppData['insurances'] {
     const { paid_year: _drop, ...rest } = p
     return { ...rest, payments } as AppData['insurances'][number]
   })
+}
+
+/** trips 表无日期列，日期集中存进 kv 'trip_dates' 里（仅含设了日期的旅行） */
+export function tripDatesBlob(trips: AppData['trips']): Record<string, { start_date: string | null; end_date: string | null }> {
+  const map: Record<string, { start_date: string | null; end_date: string | null }> = {}
+  for (const t of trips) {
+    if (t.start_date || t.end_date) map[t.id] = { start_date: t.start_date ?? null, end_date: t.end_date ?? null }
+  }
+  return map
+}
+
+/** 送去 trips 表的行需剔除日期列（这两列表里不存在） */
+export function tripRow(t: AppData['trips'][number]): Record<string, unknown> {
+  const { start_date: _s, end_date: _e, ...row } = t
+  return row
 }
 
 export function loadLocal(): AppData {
@@ -188,11 +202,18 @@ export async function pullAll(): Promise<AppData | null> {
         return rest as unknown as T
       })
     const remoteCats = strip((cats.data ?? []) as never[]) as AppData['categories']
+    // trips 表不含日期列，日期存在 kv 'trip_dates' 里，拉取后并回
+    const tripDates = (kvMap['trip_dates'] as Record<string, { start_date: string | null; end_date: string | null }>) ?? {}
+    const remoteTrips = (strip((trips.data ?? []) as never[]) as AppData['trips']).map((t) => ({
+      ...t,
+      start_date: tripDates[t.id]?.start_date ?? null,
+      end_date: tripDates[t.id]?.end_date ?? null,
+    }))
     return {
       transactions: strip((tx.data ?? []) as never[]),
       cards: strip((cards.data ?? []) as never[]),
       card_usages: strip((usages.data ?? []) as never[]),
-      trips: strip((trips.data ?? []) as never[]),
+      trips: remoteTrips,
       templates: strip((templates.data ?? []) as never[]),
       categories: remoteCats.length > 0 ? remoteCats : base.categories,
       housing_fund: (kvMap['housing_fund'] as AppData['housing_fund']) ?? null,
@@ -216,7 +237,9 @@ export async function pushAllIfCloudEmpty(data: AppData): Promise<void> {
     for (const t of data.transactions) enqueue('transactions', 'upsert', t.id, t as never)
     for (const c of data.cards) enqueue('cards', 'upsert', c.id, c as never)
     for (const u of data.card_usages) enqueue('card_usages', 'upsert', u.id, u as never)
-    for (const t of data.trips) enqueue('trips', 'upsert', t.id, t as never)
+    for (const t of data.trips) enqueue('trips', 'upsert', t.id, tripRow(t) as never)
+    const tripDates = tripDatesBlob(data.trips)
+    if (Object.keys(tripDates).length > 0) enqueue('kv', 'upsert', 'trip_dates', { key: 'trip_dates', value: tripDates })
     for (const t of data.templates) enqueue('templates', 'upsert', t.id, t as never)
     for (const c of data.categories) enqueue('categories', 'upsert', c.key, c as never)
     enqueue('kv', 'upsert', 'settings', { key: 'settings', value: data.settings })

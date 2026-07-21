@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react'
 import type { Card, Category, HousingFund, InsuranceKind, SavingsMoveType } from '../types'
 import {
   useStore, addCard, updateCard, deleteCard, useCard, deleteUsage, renewCard,
-  updateSettings, setHousingFund, deleteTemplate, updateTrip, deleteTrip, setActiveTrip,
+  updateSettings, setHousingFund, deleteTemplate, updateTrip, deleteTrip,
   upsertCategory, deleteCategory, signOut, showToast,
   setSavingsOpening, addSavingsMove, updateSavingsMove, deleteSavingsMove, setLoanRepaid,
   addInsurance, updateInsurance, deleteInsurance, setInsurancePayment, removeInsurancePayment,
 } from '../store'
 import {
   cardWarnState, cardUnitPrice, seriesStats, usagesOfCard, housingFundStatus,
-  savingsBalance, savingsYear, outstandingLoans, lockedSavingsThisYear, insurancesDue,
+  savingsBalance, savingsYear, outstandingLoans, lockedSavingsThisYear, insurancesDue, currentTrip,
 } from '../lib/derive'
 import { exportCsv } from '../lib/csv'
 import { fmtCny, fmtMoney, round2, todayStr, uid, dayLabel } from '../lib/utils'
@@ -147,7 +147,7 @@ export default function MinePage() {
         </button>
         <button className="row-line" onClick={() => setSettingsOpen('trips')}>
           <span>旅行管理</span>
-          <span className="rl-val">{data.settings.active_trip_id ? '旅行模式进行中' : ''} ›</span>
+          <span className="rl-val">{currentTrip(data, todayStr()) ? '旅行中' : ''} ›</span>
         </button>
         <button className="row-line" onClick={() => setSettingsOpen('fx')}>
           <span>默认汇率</span>
@@ -979,20 +979,20 @@ function CatEditSheet(props: { cat?: Category; parent?: string | null; type?: 'e
 
 function TripsSheet(props: { onClose: () => void }) {
   const { data } = useStore()
-  const activeId = data.settings.active_trip_id
+  const today = todayStr()
+  const currentId = currentTrip(data, today)?.id ?? null
   return (
     <Sheet title="旅行管理" onClose={props.onClose}>
       {data.trips.length === 0 && <div className="empty">还没有旅行。记账页点「✈️ 旅行」创建</div>}
-      {data.trips.map((t) => (
+      {data.trips.map((t) => {
+        const status = !t.start_date || !t.end_date ? '未设日期' : today < t.start_date ? '未开始' : today > t.end_date ? '已结束' : '进行中'
+        return (
         <div className="card" key={t.id}>
           <div className="row-line" style={{ borderBottom: 'none' }}>
-            <span>✈️ {t.name}{t.id === activeId && <span className="badge" style={{ marginLeft: 6 }}>进行中</span>}</span>
+            <span>✈️ {t.name}
+              <span className="badge" style={{ marginLeft: 6, opacity: t.id === currentId ? 1 : 0.55 }}>{status}</span>
+            </span>
             <span style={{ display: 'flex', gap: 12 }}>
-              {t.id === activeId ? (
-                <button className="link-btn" onClick={() => { setActiveTrip(null); showToast('旅行模式已结束') }}>结束</button>
-              ) : (
-                <button className="link-btn" onClick={() => { setActiveTrip(t.id); showToast(`旅行模式：${t.name}`) }}>设为进行中</button>
-              )}
               <button
                 className="link-btn"
                 onClick={() => {
@@ -1015,8 +1015,22 @@ function TripsSheet(props: { onClose: () => void }) {
               </button>
             </span>
           </div>
+          <div className="field-row" style={{ marginTop: 4 }}>
+            <div className="field grow" style={{ marginBottom: 0 }}>
+              <label>开始</label>
+              <input type="date" value={t.start_date ?? ''} onChange={(e) => updateTrip(t.id, { start_date: e.target.value || null })} />
+            </div>
+            <div className="field grow" style={{ marginBottom: 0 }}>
+              <label>结束</label>
+              <input type="date" value={t.end_date ?? ''} onChange={(e) => updateTrip(t.id, { end_date: e.target.value || null })} />
+            </div>
+          </div>
         </div>
-      ))}
+        )
+      })}
+      <div style={{ fontSize: 12, color: 'var(--ink-3)', margin: '2px 2px 0' }}>
+        只有今天落在旅行日期区间内，记账才自动带上这趟；未开始/已结束都不默认，随时可手动点 ✈️ 归账。
+      </div>
     </Sheet>
   )
 }

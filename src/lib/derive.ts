@@ -1,4 +1,4 @@
-import type { AppData, Card, CardUsage, Insurance, Savings, SavingsMove, Transaction } from '../types'
+import type { AppData, Card, CardUsage, Insurance, Savings, SavingsMove, Transaction, Trip } from '../types'
 import { CAT_CARDS } from '../data/categories'
 import { monthKey, round2 } from './utils'
 
@@ -174,6 +174,15 @@ export interface TripSummary {
   total: number
   count: number
   byCategory: { key: string; amount: number }[]
+}
+
+/** 当天所处的旅行（落在某趟 [开始, 结束] 内才算；多趟重叠取最晚开始的）。无则 null。 */
+export function currentTrip(data: AppData, day: string): Trip | null {
+  const inRange = data.trips.filter(
+    (t) => t.start_date && t.end_date && t.start_date <= day && day <= t.end_date,
+  )
+  if (inRange.length === 0) return null
+  return inRange.sort((a, b) => (b.start_date as string).localeCompare(a.start_date as string))[0]
 }
 
 export function tripSummaries(data: AppData): TripSummary[] {

@@ -56,6 +56,8 @@ export interface Trip {
   id: string
   name: string
   active: boolean
+  start_date: string | null // 旅行开始日（YYYY-MM-DD）；落在区间内才自动带标签
+  end_date: string | null // 旅行结束日；过期后自动收工
   created_at: string
   updated_at: string
 }
@@ -151,7 +153,6 @@ export interface Settings {
   budget_by_category: Record<string, number>
   ayi_fixed: number
   fx_rates: Record<string, number> // 外币 -> CNY
-  active_trip_id: string | null
   stats_include_cards: boolean
   updated_at: string
 }

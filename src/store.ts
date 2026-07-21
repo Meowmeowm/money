@@ -4,7 +4,7 @@ import type {
   Savings, SavingsMove, SavingsMoveType,
   Settings, Template, TemplateConfig, Transaction, Trip, TxType,
 } from './types'
-import { defaultData, enqueue, flushQueue, loadLocal, pullAll, pushAllIfCloudEmpty, queueLength, saveLocal } from './lib/db'
+import { defaultData, enqueue, flushQueue, loadLocal, pullAll, pushAllIfCloudEmpty, queueLength, saveLocal, tripDatesBlob, tripRow } from './lib/db'
 import { supabase, isCloudConfigured } from './lib/supabase'
 import { nowIso, round2, todayStr, uid } from './lib/utils'
 import { CAT_CARDS } from './data/categories'
@@ -340,17 +340,20 @@ export function renewCard(oldCardId: string, input: NewCardInput): Card | null {
 
 // ---------------- 旅行 ----------------
 
-export function addTrip(name: string, activate: boolean): Trip {
-  const t: Trip = { id: uid(), name, active: activate, created_at: nowIso(), updated_at: nowIso() }
-  setData((d) => ({ ...d, trips: [t, ...d.trips] }))
-  enqueue('trips', 'upsert', t.id, t as never)
-  if (activate) setActiveTrip(t.id)
-  scheduleFlush()
-  return t
+/** 日期存在 kv 'trip_dates'（trips 表无日期列）；改动后重推整块 */
+function persistTripDates() {
+  const map = tripDatesBlob(state.data.trips)
+  if (Object.keys(map).length > 0) enqueue('kv', 'upsert', 'trip_dates', { key: 'trip_dates', value: map })
+  else enqueue('kv', 'delete', 'trip_dates')
 }
 
-export function setActiveTrip(tripId: string | null) {
-  updateSettings({ active_trip_id: tripId })
+export function addTrip(name: string, startDate: string | null, endDate: string | null): Trip {
+  const t: Trip = { id: uid(), name, active: true, start_date: startDate, end_date: endDate, created_at: nowIso(), updated_at: nowIso() }
+  setData((d) => ({ ...d, trips: [t, ...d.trips] }))
+  enqueue('trips', 'upsert', t.id, tripRow(t) as never)
+  persistTripDates()
+  scheduleFlush()
+  return t
 }
 
 export function updateTrip(id: string, patch: Partial<Trip>) {
@@ -363,7 +366,8 @@ export function updateTrip(id: string, patch: Partial<Trip>) {
       return updated
     }),
   }))
-  if (updated) enqueue('trips', 'upsert', id, updated as never)
+  if (updated) enqueue('trips', 'upsert', id, tripRow(updated) as never)
+  persistTripDates()
   scheduleFlush()
 }
 
@@ -374,14 +378,13 @@ export function deleteTrip(id: string) {
     ...d,
     trips: d.trips.filter((t) => t.id !== id),
     transactions: d.transactions.map((t) => (t.trip_id === id ? { ...t, trip_id: null, updated_at: nowIso() } : t)),
-    settings: d.settings.active_trip_id === id ? { ...d.settings, active_trip_id: null, updated_at: nowIso() } : d.settings,
   }))
   for (const t of affected) {
     const row = state.data.transactions.find((x) => x.id === t.id)
     if (row) enqueue('transactions', 'upsert', row.id, row as never)
   }
   enqueue('trips', 'delete', id)
-  enqueue('kv', 'upsert', 'settings', { key: 'settings', value: state.data.settings })
+  persistTripDates()
   scheduleFlush()
 }
 
