@@ -67,7 +67,8 @@ export default function App() {
   if (auth === 'loading') {
     return (
       <div className="login-wrap">
-        <div className="login-logo">🧾</div>
+        <div className="login-logo"><img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" /></div>
+        <div className="login-title">Monica's Money</div>
         <div className="sync-dot">加载中…</div>
       </div>
     )
@@ -102,7 +103,7 @@ function Login(props: { hasPendingEntry: boolean }) {
   const hasPendingEntry = props.hasPendingEntry
   return (
     <div className="login-wrap">
-      <div className="login-logo">🧾</div>
+      <div className="login-logo"><img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" /></div>
       <div className="login-title">Monica's Money</div>
       {hasPendingEntry && <div className="hint-bar">登录后自动继续这笔记账 ⚡</div>}
       <div className="field">
